@@ -67,7 +67,7 @@ async function adjustReport(token: string, period: string, dimensions: string, m
     dimensions,
     metrics,
     app_token__in: "vpis1uwa4dmo",
-    partner_name__in: "Facebook,TikTok for Business",
+    partner_name__in: "Facebook,TikTok for Business,Google Ads",
     utc_offset: "+00:00",
     reattributed: "all",
     attribution_source: "dynamic",
@@ -119,7 +119,7 @@ async function dulciReport(request: Request, env: Env): Promise<Response> {
       totals: creativeReport.totals || {},
       trend: trendReport.rows || [],
       datePeriod: period,
-      source: "Adjust Report Service API · Meta + TikTok · creative grain · subpur revenue",
+      source: "Adjust Report Service API · Google + Meta + TikTok · creative grain · subpur revenue",
       fetchedAt: new Date().toISOString(),
       warnings: [...(creativeReport.warnings || []), ...(trendReport.warnings || [])],
     };

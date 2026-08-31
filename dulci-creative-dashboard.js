@@ -2,6 +2,12 @@ const $ = (selector) => document.querySelector(selector);
 const REVENUE_METRIC = "dulci_subpur_d14_s2s_w1_revenue_cohort";
 const SUBPUR_EVENT_METRIC = "dulci_subpur_d7_s2s_w1_events_cohort";
 const EVENT_UNIT_COST_SUFFIX = "__unit_cost";
+const CHANNELS = [
+  { name: "Facebook", label: "Meta", className: "meta", color: "#637bef" },
+  { name: "TikTok for Business", label: "TikTok", className: "tiktok", color: "#252b39" },
+  { name: "Google Ads", label: "Google", className: "google", color: "#4285f4" }
+];
+const GOOGLE_GENERIC_CREATIVES = new Set(["display", "youtube youtubevideos", "search googlesearch", "search searchpartners"]);
 
 const EVENT_METRICS = [
   { key: SUBPUR_EVENT_METRIC, label: "Subpur W1 事件", short: "Subpur W1", selected: true },
@@ -95,6 +101,14 @@ function normalizeCreativeName(value) {
 
 function creativeAssetFor(name) {
   return state.creativeAssets.get(normalizeCreativeName(name)) || null;
+}
+
+function channelDefinition(name) {
+  return CHANNELS.find((channel) => channel.name === name) || { name, label: name, className: "other", color: "#8892a6" };
+}
+
+function isMatchableCreativeName(name) {
+  return !GOOGLE_GENERIC_CREATIVES.has(String(name || "").trim().toLowerCase());
 }
 
 function iso(days = 0) {
@@ -210,9 +224,9 @@ function renderTrend() {
 }
 
 function renderChannels() {
-  const groups = ["Facebook", "TikTok for Business"].map((name) => ({ name, totals: totals(state.filtered.filter((row) => (row.channel || row.partner_name) === name)) }));
+  const groups = CHANNELS.map((channel) => ({ ...channel, totals: totals(state.filtered.filter((row) => (row.channel || row.partner_name) === channel.name)) }));
   const maxRoas = Math.max(1, ...groups.map((group) => group.totals.roas));
-  $("#channelCompare").innerHTML = groups.map((group, index) => `<div class="channel-card"><h3><span>${group.name}</span><i style="background:${index ? "#252b39" : "#637bef"}"></i></h3><dl><div><dt>花费</dt><dd>${money(group.totals.cost)}</dd></div><div><dt>Subpur 收入</dt><dd>${money(group.totals.subpurRevenue)}</dd></div><div><dt>Subpur 事件</dt><dd>${fmt(group.totals.subpurEvents)}</dd></div><div><dt>Subpur ROAS</dt><dd>${pct(group.totals.roas)}</dd></div></dl><div class="roas-track"><i style="width:${group.totals.roas / maxRoas * 100}%"></i></div></div>`).join("");
+  $("#channelCompare").innerHTML = groups.map((group) => `<div class="channel-card"><h3><span>${group.label}</span><i style="background:${group.color}"></i></h3><dl><div><dt>花费</dt><dd>${money(group.totals.cost)}</dd></div><div><dt>Subpur 收入</dt><dd>${money(group.totals.subpurRevenue)}</dd></div><div><dt>Subpur 事件</dt><dd>${fmt(group.totals.subpurEvents)}</dd></div><div><dt>Subpur ROAS</dt><dd>${pct(group.totals.roas)}</dd></div></dl><div class="roas-track"><i style="width:${group.totals.roas / maxRoas * 100}%"></i></div></div>`).join("");
 }
 
 function renderRanking() {
@@ -342,7 +356,7 @@ function status(roas) {
 }
 
 function renderVideoSyncStatus() {
-  const names = [...new Set(state.filtered.map((row) => row.creative_network || row.creative_id_network).filter(Boolean))];
+  const names = [...new Set(state.filtered.map((row) => row.creative_network || row.creative_id_network).filter((name) => name && isMatchableCreativeName(name)))];
   const matched = names.filter((name) => creativeAssetFor(name)).length;
   const statusNode = $("#videoSyncStatus");
   statusNode.className = "video-sync-status";
@@ -374,7 +388,7 @@ function renderPivot() {
     const roasStatus = status(current.roas);
     const isChannel = node.dimension.key === "channel";
     const isCreative = node.dimension.key === "creative";
-    const isTikTok = isChannel && node.value.includes("TikTok");
+    const channel = isChannel ? channelDefinition(node.value) : null;
     const asset = isCreative ? creativeAssetFor(node.value) : null;
     const videoControl = isCreative
       ? asset
@@ -385,7 +399,7 @@ function renderPivot() {
       ? `<div class="pivot-creative"><b title="${esc(node.value)}">${esc(node.value)}</b><small>${esc(node.creativeId || "—")}</small></div>`
       : `<span class="pivot-level-name">${esc(node.value)}</span>`;
     const rowClass = hasChildren ? `pivot-level-${node.level}` : "pivot-leaf";
-    return `<tr class="${rowClass}"><td class="pivot-dimension"><div style="--indent:${node.level}">${hasChildren ? `<button type="button" class="pivot-toggle" data-pivot-key="${node.key}" aria-label="${expanded ? "收起" : "展开"}">${expanded ? "−" : "+"}</button>` : '<span class="pivot-spacer"></span>'}${videoControl}${isChannel ? `<span class="channel-pill ${isTikTok ? "tiktok" : "meta"}">${isTikTok ? "TikTok" : "Meta"}</span>` : `<span class="level-tag">${node.dimension.label}</span>`}${dimension}</div></td><td>${fmt(current.installs)}</td><td>${money(current.cost)}</td><td>${money(current.ecpi)}</td><td class="revenue-cell">${money(current.subpurRevenue)}</td><td><span class="status-pill ${roasStatus[0]}">${pct(current.roas)} · ${roasStatus[1]}</span></td>${events.map((event) => { const eventCount = node.rows.reduce((sum, row) => sum + n(row[event.key]), 0); return `<td class="event-count-cell">${fmt(eventCount)}</td><td class="event-unit-cost-cell">${unitMoney(eventCount ? current.cost / eventCount : null)}</td>`; }).join("")}</tr>`;
+    return `<tr class="${rowClass}"><td class="pivot-dimension"><div style="--indent:${node.level}">${hasChildren ? `<button type="button" class="pivot-toggle" data-pivot-key="${node.key}" aria-label="${expanded ? "收起" : "展开"}">${expanded ? "−" : "+"}</button>` : '<span class="pivot-spacer"></span>'}${videoControl}${isChannel ? `<span class="channel-pill ${channel.className}">${esc(channel.label)}</span>` : `<span class="level-tag">${node.dimension.label}</span>`}${dimension}</div></td><td>${fmt(current.installs)}</td><td>${money(current.cost)}</td><td>${money(current.ecpi)}</td><td class="revenue-cell">${money(current.subpurRevenue)}</td><td><span class="status-pill ${roasStatus[0]}">${pct(current.roas)} · ${roasStatus[1]}</span></td>${events.map((event) => { const eventCount = node.rows.reduce((sum, row) => sum + n(row[event.key]), 0); return `<td class="event-count-cell">${fmt(eventCount)}</td><td class="event-unit-cost-cell">${unitMoney(eventCount ? current.cost / eventCount : null)}</td>`; }).join("")}</tr>`;
   }).join("") : `<tr><td colspan="${6 + events.length * 2}">当前筛选无素材数据</td></tr>`;
   const isDirect = mode.dimensions.length === 1;
   $("#expandAllBtn").disabled = $("#collapseAllBtn").disabled = isDirect;
@@ -432,7 +446,7 @@ async function loadCreativeAssets(refresh = false) {
 async function loadData(refresh = false) {
   $("#queryBtn").disabled = $("#refreshBtn").disabled = true;
   $("#message").className = "message";
-  $("#message").textContent = "正在从 Adjust 拉取 Meta 与 TikTok 素材数据…";
+  $("#message").textContent = "正在从 Adjust 拉取 Google、Meta 与 TikTok 投放数据…";
   try {
     const params = new URLSearchParams({ start: $("#startDate").value, end: $("#endDate").value });
     if (refresh) params.set("refresh", "1");
@@ -449,7 +463,7 @@ async function loadData(refresh = false) {
     $("#sourceState").textContent = "Adjust 已连接";
     $("#freshness").textContent = `更新于 ${new Date(data.fetchedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}${data.cached ? " · 缓存" : ""}`;
     $("#message").className = "message success";
-    $("#message").textContent = `已加载 ${state.rows.length} 条素材组合 · Facebook 与 TikTok · ${data.datePeriod} · 收入仅使用 Subpur 口径`;
+    $("#message").textContent = `已加载 ${state.rows.length} 条投放组合 · Google、Meta 与 TikTok · ${data.datePeriod} · 收入仅使用 Subpur 口径 · Google 素材为 Adjust 返回的类型粒度`;
   } catch (error) {
     $("#sourceState").textContent = "Adjust 连接失败";
     $("#message").className = "message error";

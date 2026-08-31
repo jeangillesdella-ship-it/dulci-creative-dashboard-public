@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Dulci · Meta & TikTok 素材转化看板</title>
+  <link rel="stylesheet" href="./dulci-creative-dashboard.css?v=20260831-9" />
+</head>
+<body>
+  <div class="app">
+    <aside>
+      <div class="brand"><span>D</span><div><b>Dulci</b><small>CREATIVE INTELLIGENCE</small></div></div>
+      <nav><button class="active">素材表现</button><button>Campaign</button><button>Group</button><button>事件漏斗</button></nav>
+      <div class="source"><i id="sourceDot"></i><div><b id="sourceState">连接 Adjust…</b><small>5 分钟缓存 · UTC</small></div></div>
+    </aside>
+    <main>
+      <header>
+        <div><p class="eyebrow">ADJUST · META + TIKTOK</p><h1>素材转化监测</h1><p>按渠道、Campaign、Group 和素材逐级查看成本、打点事件与 Subpur 收入。</p></div>
+        <div class="head-actions"><span id="freshness">尚未更新</span><button id="refreshBtn">刷新数据</button></div>
+      </header>
+
+      <section class="filter-card">
+        <label>开始日期<input id="startDate" type="date" /></label>
+        <label>结束日期<input id="endDate" type="date" /></label>
+        <label>渠道<select id="channel"><option value="">全部渠道</option></select></label>
+        <label>Campaign<select id="campaign"><option value="">全部 Campaign</option></select></label>
+        <label>Group<select id="group"><option value="">全部 Group</option></select></label>
+        <div class="field event-filter"><span>事件指标</span><button id="eventPickerBtn" type="button" class="picker-button"><b id="eventPickerLabel">已选 4 个事件</b><i>⌄</i></button><div id="eventMenu" class="event-menu" hidden></div></div>
+        <label class="search">素材搜索<input id="creativeSearch" placeholder="素材名称或 Creative ID" /></label>
+        <button id="queryBtn">查询</button>
+        <button id="resetBtn" class="ghost">重置</button>
+      </section>
+
+      <div id="message" class="message">正在读取 Adjust 素材级数据…</div>
+      <section id="kpis" class="kpis"></section>
+
+      <section class="chart-grid">
+        <article class="panel trend-panel"><div class="panel-head"><div><h2>每日花费与 Subpur 收入</h2><p id="trendNote">按 UTC 日期汇总</p></div><div class="legend"><i class="cost"></i>花费 <i class="revenue"></i>Subpur 收入</div></div><div id="trendChart" class="chart"></div></article>
+        <article class="panel"><div class="panel-head"><div><h2>渠道表现</h2><p>花费、Subpur 收入和 Subpur ROAS</p></div></div><div id="channelCompare" class="channel-compare"></div></article>
+        <article class="panel"><div class="panel-head"><div><h2>Subpur 素材收入 Top 10</h2><p>按 Subpur 收入排序</p></div></div><div id="creativeRanking" class="ranking"></div></article>
+      </section>
+
+      <section class="panel table-panel">
+        <div class="panel-head table-head"><div><h2>素材数据透视表</h2><p id="tableMeta">默认直接按素材汇总</p><p id="videoSyncStatus" class="video-sync-status">正在检查本地视频素材…</p></div><div class="table-actions"><label class="pivot-mode-label">查看层级<select id="pivotMode"><option value="creative">素材（直接查看）</option><option value="channelCreative">渠道 → 素材</option><option value="campaignCreative">Campaign → 素材</option><option value="groupCreative">Group → 素材</option><option value="full">渠道 → Campaign → Group → 素材</option></select></label><button id="expandAllBtn" class="ghost">全部展开</button><button id="collapseAllBtn" class="ghost">全部收起</button><button id="clearMetricFiltersBtn" class="ghost" disabled>清除指标筛选</button><label>排序<select id="sortBy"><option value="subpurRevenue">Subpur 收入</option><option value="subpurEvents">Subpur 事件</option><option value="cost">花费</option><option value="roas">Subpur ROAS</option><option value="installs">安装</option></select></label><button id="exportBtn" class="ghost">导出当前结果</button></div></div>
+        <div class="table-wrap pivot-wrap"><table class="pivot-table"><thead><tr id="pivotHead"></tr></thead><tbody id="creativeRows"></tbody></table></div>
+        <div id="metricFilterPopover" class="metric-filter-popover" hidden><div class="metric-filter-title"><b id="metricFilterTitle">指标筛选</b><button id="closeMetricFilter" type="button">×</button></div><label>最小值<input id="metricFilterMin" type="number" step="any" placeholder="不限" /></label><label>最大值<input id="metricFilterMax" type="number" step="any" placeholder="不限" /></label><div class="metric-filter-actions"><button id="removeMetricFilter" type="button" class="ghost">清除此列</button><button id="applyMetricFilter" type="button">应用筛选</button></div></div>
+      </section>
+      <div id="videoModal" class="video-modal" hidden role="dialog" aria-modal="true" aria-labelledby="videoModalTitle">
+        <div class="video-dialog">
+          <div class="video-dialog-head"><div><b id="videoModalTitle">素材视频</b><small id="videoModalMeta"></small></div><button id="closeVideoModal" type="button" aria-label="关闭视频">×</button></div>
+          <video id="creativeVideo" controls playsinline preload="metadata"></video>
+        </div>
+      </div>
+      <footer>数据源：Adjust Report Service API · app vpis1uwa4dmo · network 花费 · immature cohort · Meta + TikTok · 收入口径：dulci_subpur_d14_s2s_w1_revenue_cohort</footer>
+    </main>
+  </div>
+  <script src="./dulci-creative-dashboard.js?v=20260831-9"></script>
+</body>
+</html>

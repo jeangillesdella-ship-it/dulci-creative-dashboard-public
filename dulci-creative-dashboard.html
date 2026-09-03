@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Dulci · Google、Meta、TikTok 素材转化看板</title>
-  <link rel="stylesheet" href="./dulci-creative-dashboard.css?v=20260903-3" />
+  <link rel="stylesheet" href="./dulci-creative-dashboard.css?v=20260903-4" />
 </head>
 <body>
   <div class="app">
@@ -23,8 +23,9 @@
         <label>开始日期<input id="startDate" type="date" /></label>
         <label>结束日期<input id="endDate" type="date" /></label>
         <label>渠道<select id="channel"><option value="">全部渠道</option></select></label>
-        <label>Campaign<select id="campaign"><option value="">全部 Campaign</option></select></label>
-        <label>Group<select id="group"><option value="">全部 Group</option></select></label>
+        <label>Campaign<input id="campaign" list="campaignOptions" placeholder="输入或选择 Campaign" autocomplete="off"/><datalist id="campaignOptions"></datalist></label>
+        <label>Group<input id="group" list="groupOptions" placeholder="输入或选择 Group" autocomplete="off"/><datalist id="groupOptions"></datalist></label>
+        <label>素材视频<select id="videoMatch"><option value="">全部素材</option><option value="matched">已匹配视频</option><option value="unmatched">未匹配视频</option></select></label>
         <div class="field event-filter"><span>事件指标</span><button id="eventPickerBtn" type="button" class="picker-button"><b id="eventPickerLabel">已选 4 个事件</b><i>⌄</i></button><div id="eventMenu" class="event-menu" hidden></div></div>
         <label class="search">素材搜索<input id="creativeSearch" placeholder="素材名称或 Creative ID" /></label>
         <button id="queryBtn">查询</button>
@@ -54,6 +55,6 @@
       <footer>数据源：Adjust Report Service API · 最近 93 天公开快照 · app vpis1uwa4dmo · network 花费 · immature cohort · Google + Meta + TikTok · 收入口径：dulci_subpur_d14_s2s_w1_revenue_cohort</footer>
     </main>
   </div>
-  <script src="./dulci-creative-dashboard.js?v=20260903-3"></script>
+  <script src="./dulci-creative-dashboard.js?v=20260903-4"></script>
 </body>
 </html>

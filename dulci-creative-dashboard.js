@@ -176,26 +176,41 @@ function option(select, values, allLabel) {
   if ([...select.options].some((item) => item.value === current)) select.value = current;
 }
 
+function suggestions(list, values) {
+  const options = [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  list.innerHTML = options.map((value) => `<option value="${esc(value)}"></option>`).join("");
+}
+
+function containsFilter(value, query) {
+  return !query || String(value || "").toLowerCase().includes(query.toLowerCase());
+}
+
 function refreshOptions() {
   const channel = $("#channel").value;
   option($("#channel"), state.rows.map((row) => row.channel || row.partner_name), "全部渠道");
   const base = state.rows.filter((row) => !channel || (row.channel || row.partner_name) === channel);
-  option($("#campaign"), base.map((row) => row.campaign_network), "全部 Campaign");
-  const campaign = $("#campaign").value;
-  option($("#group"), base.filter((row) => !campaign || row.campaign_network === campaign).map((row) => row.adgroup_network), "全部 Group");
+  suggestions($("#campaignOptions"), base.map((row) => row.campaign_network));
+  const campaign = $("#campaign").value.trim();
+  suggestions($("#groupOptions"), base.filter((row) => containsFilter(row.campaign_network, campaign)).map((row) => row.adgroup_network));
 }
 
 function applyFilters() {
   const channel = $("#channel").value;
   const campaign = $("#campaign").value;
   const group = $("#group").value;
+  const videoMatch = $("#videoMatch").value;
   const query = $("#creativeSearch").value.trim().toLowerCase();
-  state.filtered = state.rows.filter((row) =>
+  state.filtered = state.rows.filter((row) => {
+    const creativeName = row.creative_network || row.creative_id_network || "";
+    const hasVideo = Boolean(creativeAssetFor(creativeName));
+    return (
     (!channel || (row.channel || row.partner_name) === channel) &&
-    (!campaign || row.campaign_network === campaign) &&
-    (!group || row.adgroup_network === group) &&
+    containsFilter(row.campaign_network, campaign.trim()) &&
+    containsFilter(row.adgroup_network, group.trim()) &&
+    (!videoMatch || (videoMatch === "matched" ? hasVideo : !hasVideo)) &&
     (!query || `${row.creative_network} ${row.creative_id_network}`.toLowerCase().includes(query))
-  ).map(derived);
+    );
+  }).map(derived);
   initializePivotExpansion();
   render();
 }
@@ -626,15 +641,16 @@ renderEventMenu();
 $("#queryBtn").onclick = () => loadData();
 $("#refreshBtn").onclick = () => loadData(true);
 $("#resetBtn").onclick = () => {
-  $("#channel").value = $("#campaign").value = $("#group").value = $("#creativeSearch").value = "";
+  $("#channel").value = $("#campaign").value = $("#group").value = $("#videoMatch").value = $("#creativeSearch").value = "";
   state.metricFilters.clear();
   closeMetricFilter();
   refreshOptions();
   applyFilters();
 };
-$("#channel").onchange = () => { refreshOptions(); applyFilters(); };
-$("#campaign").onchange = () => { refreshOptions(); applyFilters(); };
-$("#group").onchange = applyFilters;
+$("#channel").onchange = () => { $("#campaign").value = $("#group").value = ""; refreshOptions(); applyFilters(); };
+$("#campaign").oninput = () => { $("#group").value = ""; refreshOptions(); applyFilters(); };
+$("#group").oninput = applyFilters;
+$("#videoMatch").onchange = applyFilters;
 $("#creativeSearch").oninput = applyFilters;
 $("#pivotMode").onchange = () => {
   localStorage.setItem("dulci-pivot-mode", $("#pivotMode").value);

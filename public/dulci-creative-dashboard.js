@@ -1,4 +1,5 @@
 const $ = (selector) => document.querySelector(selector);
+const STATIC_DATA_URL = "./data/latest.json";
 const REVENUE_METRIC = "dulci_subpur_d14_s2s_w1_revenue_cohort";
 const SUBPUR_EVENT_METRIC = "dulci_subpur_d7_s2s_w1_events_cohort";
 const EVENT_UNIT_COST_SUFFIX = "__unit_cost";
@@ -142,6 +143,29 @@ function totals(rows) {
     roas: cost ? subpurRevenue / cost : 0,
     creatives: new Set(rows.map((row) => row.creative_id_network || row.creative_network).filter(Boolean)).size
   };
+}
+
+function rowsForPeriod(rows, start, end) {
+  return rows.filter((row) => row.day && row.day >= start && row.day <= end);
+}
+
+function aggregateCreativeRows(rows) {
+  const dimensions = [
+    "partner_name", "channel", "campaign_id_network", "campaign_network",
+    "adgroup_id_network", "adgroup_network", "creative_id_network", "creative_network"
+  ];
+  const additive = [
+    "installs", "reattributions", "cost", "dulci_purchase_d0_events_cohort",
+    ...EVENT_METRICS.map((metric) => metric.key)
+  ];
+  const grouped = new Map();
+  for (const row of rows) {
+    const id = dimensions.map((key) => String(row[key] || "")).join("\u001f");
+    if (!grouped.has(id)) grouped.set(id, Object.fromEntries(dimensions.map((key) => [key, row[key] || ""])));
+    const current = grouped.get(id);
+    for (const key of additive) current[key] = n(current[key]) + n(row[key]);
+  }
+  return [...grouped.values()].map((row) => ({ ...row, ecpi_all: n(row.installs) ? n(row.cost) / n(row.installs) : 0 }));
 }
 
 function option(select, values, allLabel) {
@@ -419,17 +443,12 @@ function render() {
 async function loadCreativeAssets(refresh = false) {
   state.videoError = "";
   try {
-    const localResponse = await fetch(`/api/local-media/assets${refresh ? "?refresh=1" : ""}`);
+    const localResponse = await fetch(`./data/assets.json${refresh ? `?t=${Date.now()}` : ""}`);
     const localData = await localResponse.json();
     if (!localResponse.ok) throw new Error(localData.error || "本地素材库读取失败");
     const assets = [...(localData.assets || [])];
     let fallback = null;
-    if (!assets.length) {
-      const feishuResponse = await fetch(`/api/feishu/creative-assets${refresh ? "?refresh=1" : ""}`);
-      fallback = await feishuResponse.json();
-      if (!feishuResponse.ok) throw new Error(fallback.error || "飞书素材查询失败");
-      assets.push(...(fallback.assets || []));
-    }
+    if (!assets.length) fallback = localData;
     const sourceData = assets.length && localData.assets?.length ? localData : fallback || localData;
     state.videoConfigured = Boolean(assets.length);
     state.videoRecordsScanned = assets.length;
@@ -448,22 +467,21 @@ async function loadData(refresh = false) {
   $("#message").className = "message";
   $("#message").textContent = "正在从 Adjust 拉取 Google、Meta 与 TikTok 投放数据…";
   try {
-    const params = new URLSearchParams({ start: $("#startDate").value, end: $("#endDate").value });
-    if (refresh) params.set("refresh", "1");
-    const response = await fetch(`/api/adjust/dulci-creatives?${params}`);
+    const response = await fetch(`${STATIC_DATA_URL}${refresh ? `?t=${Date.now()}` : ""}`, { cache: refresh ? "no-store" : "default" });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Adjust 查询失败");
-    state.rows = data.rows || [];
-    state.trend = data.trend || [];
+    const dailyRows = rowsForPeriod(data.rows || [], $("#startDate").value, $("#endDate").value);
+    state.rows = aggregateCreativeRows(dailyRows);
+    state.trend = dailyRows;
     state.fetchedAt = data.fetchedAt;
     await loadCreativeAssets(refresh);
     refreshOptions();
     applyFilters();
     $("#sourceDot").className = "ok";
-    $("#sourceState").textContent = "Adjust 已连接";
+    $("#sourceState").textContent = "Adjust 自动同步";
     $("#freshness").textContent = `更新于 ${new Date(data.fetchedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}${data.cached ? " · 缓存" : ""}`;
     $("#message").className = "message success";
-    $("#message").textContent = `已加载 ${state.rows.length} 条投放组合 · Google、Meta 与 TikTok · ${data.datePeriod} · 收入仅使用 Subpur 口径 · Google 素材为 Adjust 返回的类型粒度`;
+    $("#message").textContent = `已加载 ${state.rows.length} 条投放组合 · Google、Meta 与 TikTok · 当前筛选 ${$("#startDate").value} 至 ${$("#endDate").value} · 数据池 ${data.datePeriod} · 收入仅使用 Subpur 口径`;
   } catch (error) {
     $("#sourceState").textContent = "Adjust 连接失败";
     $("#message").className = "message error";

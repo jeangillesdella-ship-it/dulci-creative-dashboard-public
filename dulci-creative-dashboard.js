@@ -62,6 +62,7 @@ const state = {
   videoError: "",
   videoSource: ""
 };
+let previewObserver = null;
 
 const PIVOT_DIMENSIONS = {
   channel: { key: "channel", label: "渠道", value: (row) => row.channel || row.partner_name || "未知渠道", id: (row) => row.channel || row.partner_name || "unknown-channel" },
@@ -398,6 +399,27 @@ function renderVideoSyncStatus() {
   statusNode.textContent = `${state.videoSource || "本地素材库"}已连接 · 当前素材匹配 ${matched} / ${names.length} · 已导入 ${state.videoRecordsScanned} 条视频`;
 }
 
+function hydrateVideoPreviews() {
+  if (previewObserver) previewObserver.disconnect();
+  const previews = [...document.querySelectorAll("video.video-thumb[data-preview-src]")];
+  const loadPreview = (video) => {
+    if (video.src) return;
+    video.src = `${video.dataset.previewSrc}#t=0.1`;
+  };
+  if (!("IntersectionObserver" in window)) {
+    previews.slice(0, 12).forEach(loadPreview);
+    return;
+  }
+  previewObserver = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      loadPreview(entry.target);
+      previewObserver.unobserve(entry.target);
+    }
+  }, { rootMargin: "240px 0px" });
+  previews.forEach((video) => previewObserver.observe(video));
+}
+
 function renderPivot() {
   const events = selectedEventDefinitions();
   const mode = currentPivotMode();
@@ -416,7 +438,7 @@ function renderPivot() {
     const asset = isCreative ? creativeAssetFor(node.value) : null;
     const videoControl = isCreative
       ? asset
-        ? `<button type="button" class="video-play" data-video-url="${esc(asset.mediaUrl)}" data-video-name="${esc(node.value)}" data-video-file="${esc(asset.fileName || asset.creativeName)}" aria-label="播放素材视频：${esc(node.value)}" title="在面板中播放视频">${asset.thumbnailUrl ? `<img src="${esc(asset.thumbnailUrl)}" alt="" loading="lazy"/>` : `<video class="video-thumb" src="${esc(asset.mediaUrl)}#t=0.1" muted playsinline preload="metadata" aria-hidden="true"></video>`}<span>▶</span></button>`
+        ? `<button type="button" class="video-play" data-video-url="${esc(asset.mediaUrl)}" data-video-name="${esc(node.value)}" data-video-file="${esc(asset.fileName || asset.creativeName)}" aria-label="播放素材视频：${esc(node.value)}" title="在面板中播放视频">${asset.thumbnailUrl ? `<img src="${esc(asset.thumbnailUrl)}" alt="" loading="lazy"/>` : `<video class="video-thumb" data-preview-src="${esc(asset.mediaUrl)}" muted playsinline preload="none" aria-hidden="true"></video>`}<span>▶</span></button>`
         : ""
       : "";
     const dimension = isCreative
@@ -430,6 +452,7 @@ function renderPivot() {
   $("#clearMetricFiltersBtn").disabled = state.metricFilters.size === 0;
   $("#tableMeta").textContent = `${state.filtered.length.toLocaleString("zh-CN")} 条广告组合 · ${mode.label} · 当前显示 ${visible.length} / ${allVisible.length} 行 · ${state.metricFilters.size} 个指标筛选 · ${events.length} 个事件指标`;
   renderVideoSyncStatus();
+  hydrateVideoPreviews();
 }
 
 function render() {

@@ -58,6 +58,8 @@ test("dashboard loads Feishu assets and renders inline video previews", async ()
   assert.match(html, /id="creativeVideo"/);
   assert.match(script, /\/api\/feishu\/creative-assets/);
   assert.match(script, /class="video-thumb"/);
+  assert.match(script, /IntersectionObserver/);
+  assert.match(script, /data-preview-src/);
   assert.match(script, /data-video-url/);
   assert.match(css, /\.video-play \.video-thumb/);
 });

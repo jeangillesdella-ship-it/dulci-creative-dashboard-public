@@ -62,4 +62,5 @@ test("dashboard loads Feishu assets and renders inline video previews", async ()
   assert.match(script, /data-preview-src/);
   assert.match(script, /data-video-url/);
   assert.match(css, /\.video-play \.video-thumb/);
+  assert.match(css, /object-fit:contain/);
 });

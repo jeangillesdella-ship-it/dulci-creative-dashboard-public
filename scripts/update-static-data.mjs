@@ -43,7 +43,7 @@ const report = JSON.parse(body);
 const payload = {
   rows: report.rows || [],
   fetchedAt: new Date().toISOString(),
-  datePeriod: "最近 93 天（UTC，每 30 分钟自动更新）",
+  datePeriod: "最近 93 天（UTC 公开快照）",
   source: "Adjust Report Service API · Google + Meta + TikTok · daily creative grain · subpur revenue",
   warnings: report.warnings || [],
 };

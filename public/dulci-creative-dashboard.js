@@ -478,7 +478,7 @@ async function loadData(refresh = false) {
     refreshOptions();
     applyFilters();
     $("#sourceDot").className = "ok";
-    $("#sourceState").textContent = "Adjust 自动同步";
+    $("#sourceState").textContent = "Adjust 数据快照";
     $("#freshness").textContent = `更新于 ${new Date(data.fetchedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}${data.cached ? " · 缓存" : ""}`;
     $("#message").className = "message success";
     $("#message").textContent = `已加载 ${state.rows.length} 条投放组合 · Google、Meta 与 TikTok · 当前筛选 ${$("#startDate").value} 至 ${$("#endDate").value} · 数据池 ${data.datePeriod} · 收入仅使用 Subpur 口径`;

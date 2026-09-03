@@ -5,6 +5,9 @@ import handler from "vinext/server/app-router-entry";
 interface Env {
   ASSETS: Fetcher;
   ADJUST_API_TOKEN?: string;
+  FEISHU_APP_ID?: string;
+  FEISHU_APP_SECRET?: string;
+  FEISHU_DULCI_FOLDER_TOKEN?: string;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -21,6 +24,158 @@ interface ExecutionContext {
 
 type CachedReport = { cachedAt: number; payload: Record<string, unknown> };
 const reportCache = new Map<string, CachedReport>();
+let feishuTokenCache: { value: string; expiresAt: number } = { value: "", expiresAt: 0 };
+let feishuAssetCache: { cachedAt: number; payload: Record<string, unknown> | null } = { cachedAt: 0, payload: null };
+
+type FeishuDriveFile = {
+  name?: string;
+  type?: string;
+  token?: string;
+  created_time?: string;
+  modified_time?: string;
+};
+
+function normalizeCreativeName(value: string): string {
+  return String(value || "")
+    .normalize("NFKC")
+    .replace(/[?#].*$/, "")
+    .replace(/[_\s-]*广告名称\s*20\d{2}[-_/]\d{1,2}[-_/]\d{1,2}.*$/i, "")
+    .replace(/[_\s-]*ad\s*name\s*20\d{2}[-_/]\d{1,2}[-_/]\d{1,2}.*$/i, "")
+    .replace(/[_\s-]*拉踩\s*$/i, "")
+    .replace(/\.(mp4|mov|m4v|webm|avi|mkv)$/i, "")
+    .replace(/(_\d{3,4}x\d{3,4})_[a-z0-9]{6,12}$/i, "$1")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+async function getFeishuToken(env: Env): Promise<string> {
+  if (!env.FEISHU_APP_ID || !env.FEISHU_APP_SECRET) throw new Error("飞书素材连接尚未配置");
+  if (feishuTokenCache.value && Date.now() < feishuTokenCache.expiresAt) return feishuTokenCache.value;
+  const response = await fetch("https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal", {
+    method: "POST",
+    headers: { "content-type": "application/json; charset=utf-8" },
+    body: JSON.stringify({ app_id: env.FEISHU_APP_ID, app_secret: env.FEISHU_APP_SECRET }),
+  });
+  const body = await response.json() as { code?: number; msg?: string; tenant_access_token?: string; expire?: number };
+  if (!response.ok || body.code !== 0 || !body.tenant_access_token) {
+    throw new Error(`飞书鉴权失败：${body.msg || response.status}`);
+  }
+  feishuTokenCache = {
+    value: body.tenant_access_token,
+    expiresAt: Date.now() + Math.max(300, Number(body.expire || 7200) - 120) * 1000,
+  };
+  return feishuTokenCache.value;
+}
+
+async function listFeishuFolder(token: string, folderToken: string): Promise<FeishuDriveFile[]> {
+  const files: FeishuDriveFile[] = [];
+  let pageToken = "";
+  do {
+    const params = new URLSearchParams({ folder_token: folderToken, page_size: "200" });
+    if (pageToken) params.set("page_token", pageToken);
+    const response = await fetch(`https://open.feishu.cn/open-apis/drive/v1/files?${params}`, {
+      headers: { authorization: `Bearer ${token}`, accept: "application/json" },
+    });
+    const body = await response.json() as {
+      code?: number;
+      msg?: string;
+      data?: { files?: FeishuDriveFile[]; has_more?: boolean; next_page_token?: string; page_token?: string };
+    };
+    if (!response.ok || body.code !== 0) throw new Error(`飞书目录读取失败：${body.msg || response.status}`);
+    files.push(...(body.data?.files || []));
+    pageToken = body.data?.has_more ? String(body.data?.next_page_token || body.data?.page_token || "") : "";
+  } while (pageToken);
+  return files;
+}
+
+async function readFeishuVideoAssets(env: Env, refresh = false): Promise<Record<string, unknown>> {
+  if (!refresh && feishuAssetCache.payload && Date.now() - feishuAssetCache.cachedAt < 10 * 60 * 1000) {
+    return { ...feishuAssetCache.payload, cached: true };
+  }
+  const rootToken = String(env.FEISHU_DULCI_FOLDER_TOKEN || "").trim();
+  if (!rootToken) throw new Error("飞书 DulCi 文件夹尚未配置");
+  const token = await getFeishuToken(env);
+  const queue: Array<{ token: string; path: string }> = [{ token: rootToken, path: "DulCi" }];
+  const videos: Array<FeishuDriveFile & { folder: string }> = [];
+  let foldersScanned = 0;
+  while (queue.length) {
+    const batch = queue.splice(0, 8);
+    const results = await Promise.all(batch.map(async (folder) => ({ folder, items: await listFeishuFolder(token, folder.token) })));
+    for (const { folder, items } of results) {
+      foldersScanned += 1;
+      for (const item of items) {
+        const name = String(item.name || "");
+        const itemToken = String(item.token || "");
+        if (!itemToken) continue;
+        if (item.type === "folder") queue.push({ token: itemToken, path: `${folder.path}/${name}` });
+        else if (/\.(mp4|mov|m4v|webm|avi|mkv)$/i.test(name)) videos.push({ ...item, folder: folder.path });
+      }
+    }
+  }
+  const unique = new Map<string, Record<string, unknown>>();
+  videos
+    .sort((a, b) => Number(b.modified_time || b.created_time || 0) - Number(a.modified_time || a.created_time || 0))
+    .forEach((file) => {
+      const fileName = String(file.name || "");
+      const normalizedName = normalizeCreativeName(fileName);
+      if (!normalizedName || unique.has(normalizedName)) return;
+      unique.set(normalizedName, {
+        creativeName: fileName,
+        normalizedName,
+        fileName,
+        folder: file.folder,
+        updatedAt: new Date(Number(file.modified_time || file.created_time || 0) * 1000).toISOString(),
+        mediaUrl: `/api/feishu/media/${encodeURIComponent(String(file.token || ""))}`,
+        thumbnailUrl: "",
+        source: "feishu-drive",
+      });
+    });
+  const payload = {
+    configured: true,
+    assets: [...unique.values()],
+    recordsScanned: videos.length,
+    foldersScanned,
+    fetchedAt: new Date().toISOString(),
+    source: "飞书云盘 DulCi",
+  };
+  feishuAssetCache = { cachedAt: Date.now(), payload };
+  return { ...payload, cached: false };
+}
+
+async function feishuAssets(request: Request, env: Env): Promise<Response> {
+  try {
+    const refresh = new URL(request.url).searchParams.get("refresh") === "1";
+    return json(await readFeishuVideoAssets(env, refresh));
+  } catch (error) {
+    return json({ configured: false, assets: [], error: error instanceof Error ? error.message : "飞书素材读取失败" }, 502);
+  }
+}
+
+async function feishuMedia(request: Request, env: Env, fileToken: string): Promise<Response> {
+  try {
+    if (!fileToken) throw new Error("素材文件不存在");
+    const token = await getFeishuToken(env);
+    const requestHeaders: Record<string, string> = { authorization: `Bearer ${token}` };
+    const range = request.headers.get("range");
+    if (range) requestHeaders.range = range;
+    const upstream = await fetch(`https://open.feishu.cn/open-apis/drive/v1/files/${encodeURIComponent(fileToken)}/download`, {
+      headers: requestHeaders,
+    });
+    if (!upstream.ok) {
+      const detail = (await upstream.text()).slice(0, 180);
+      throw new Error(`飞书视频读取失败：${upstream.status} ${detail}`);
+    }
+    const headers = new Headers();
+    ["content-type", "content-length", "content-range", "accept-ranges", "etag", "last-modified"].forEach((name) => {
+      const value = upstream.headers.get(name);
+      if (value) headers.set(name, value);
+    });
+    headers.set("cache-control", "public, max-age=300");
+    return new Response(upstream.body, { status: upstream.status, headers });
+  } catch (error) {
+    return json({ error: error instanceof Error ? error.message : "飞书视频读取失败" }, 404);
+  }
+}
 
 const creativeMetrics = [
   "installs", "reattributions", "cost", "ecpi_all",
@@ -133,10 +288,15 @@ async function dulciReport(request: Request, env: Env): Promise<Response> {
 
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    env = env || ({} as Env);
     const url = new URL(request.url);
 
     if (url.pathname === "/api/adjust/dulci-creatives") return dulciReport(request, env);
-    if (url.pathname === "/api/local-media/assets" || url.pathname === "/api/feishu/creative-assets") {
+    if (url.pathname === "/api/feishu/creative-assets") return feishuAssets(request, env);
+    if (url.pathname.startsWith("/api/feishu/media/")) {
+      return feishuMedia(request, env, decodeURIComponent(url.pathname.slice("/api/feishu/media/".length)));
+    }
+    if (url.pathname === "/api/local-media/assets") {
       return json({ assets: [], configured: false, recordsScanned: 0, fetchedAt: new Date().toISOString(), source: "" });
     }
 

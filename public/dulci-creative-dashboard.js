@@ -416,7 +416,7 @@ function renderPivot() {
     const asset = isCreative ? creativeAssetFor(node.value) : null;
     const videoControl = isCreative
       ? asset
-        ? `<button type="button" class="video-play" data-video-url="${esc(asset.mediaUrl)}" data-video-name="${esc(node.value)}" data-video-file="${esc(asset.fileName || asset.creativeName)}" aria-label="播放素材视频：${esc(node.value)}" title="在面板中播放视频">${asset.thumbnailUrl ? `<img src="${esc(asset.thumbnailUrl)}" alt="" loading="lazy"/>` : ""}<span>▶</span></button>`
+        ? `<button type="button" class="video-play" data-video-url="${esc(asset.mediaUrl)}" data-video-name="${esc(node.value)}" data-video-file="${esc(asset.fileName || asset.creativeName)}" aria-label="播放素材视频：${esc(node.value)}" title="在面板中播放视频">${asset.thumbnailUrl ? `<img src="${esc(asset.thumbnailUrl)}" alt="" loading="lazy"/>` : `<video class="video-thumb" src="${esc(asset.mediaUrl)}#t=0.1" muted playsinline preload="metadata" aria-hidden="true"></video>`}<span>▶</span></button>`
         : ""
       : "";
     const dimension = isCreative
@@ -443,17 +443,26 @@ function render() {
 async function loadCreativeAssets(refresh = false) {
   state.videoError = "";
   try {
-    const localResponse = await fetch(`./data/assets.json${refresh ? `?t=${Date.now()}` : ""}`);
-    const localData = await localResponse.json();
-    if (!localResponse.ok) throw new Error(localData.error || "本地素材库读取失败");
-    const assets = [...(localData.assets || [])];
-    let fallback = null;
-    if (!assets.length) fallback = localData;
-    const sourceData = assets.length && localData.assets?.length ? localData : fallback || localData;
+    let sourceData = null;
+    try {
+      const feishuResponse = await fetch(`/api/feishu/creative-assets${refresh ? "?refresh=1" : ""}`, { cache: refresh ? "no-store" : "default" });
+      const feishuData = await feishuResponse.json();
+      if (feishuResponse.ok && feishuData.assets?.length) sourceData = feishuData;
+      else if (!feishuResponse.ok) throw new Error(feishuData.error || "飞书素材读取失败");
+    } catch (error) {
+      state.videoError = error.message;
+    }
+    if (!sourceData) {
+      const staticResponse = await fetch(`./data/assets.json${refresh ? `?t=${Date.now()}` : ""}`);
+      const staticData = await staticResponse.json();
+      if (!staticResponse.ok) throw new Error(staticData.error || "素材库读取失败");
+      sourceData = staticData;
+    }
+    const assets = [...(sourceData.assets || [])];
     state.videoConfigured = Boolean(assets.length);
     state.videoRecordsScanned = assets.length;
     state.videoFetchedAt = sourceData.fetchedAt || "";
-    state.videoSource = localData.assets?.length ? "本地素材库" : fallback?.configured ? "飞书视频" : "";
+    state.videoSource = sourceData.source || (assets.length ? "飞书云盘" : "");
     state.creativeAssets = new Map(assets.map((asset) => [asset.normalizedName || normalizeCreativeName(asset.creativeName || asset.fileName), asset]));
   } catch (error) {
     state.videoConfigured = false;

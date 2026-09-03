@@ -56,6 +56,8 @@ test("dashboard loads Feishu assets and renders inline video previews", async ()
 
   assert.match(html, /id="videoModal"/);
   assert.match(html, /id="creativeVideo"/);
+  assert.match(html, /id="videoMatch"/);
+  assert.match(html, /id="campaignOptions"/);
   assert.match(script, /\/api\/feishu\/creative-assets/);
   assert.match(script, /class="video-thumb"/);
   assert.match(script, /IntersectionObserver/);

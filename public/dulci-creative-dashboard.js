@@ -404,7 +404,17 @@ function hydrateVideoPreviews() {
   const previews = [...document.querySelectorAll("video.video-thumb[data-preview-src]")];
   const loadPreview = (video) => {
     if (video.src) return;
-    video.src = `${video.dataset.previewSrc}#t=0.1`;
+    const button = video.closest(".video-play");
+    const showFrame = () => button?.classList.add("preview-ready");
+    video.addEventListener("loadedmetadata", () => {
+      try { video.currentTime = Math.min(0.15, Math.max(0, video.duration || 0.15)); } catch {}
+    }, { once: true });
+    video.addEventListener("loadeddata", showFrame, { once: true });
+    video.addEventListener("seeked", showFrame, { once: true });
+    video.addEventListener("error", () => button?.classList.add("preview-error"), { once: true });
+    video.preload = "auto";
+    video.src = video.dataset.previewSrc;
+    video.load();
   };
   if (!("IntersectionObserver" in window)) {
     previews.slice(0, 12).forEach(loadPreview);

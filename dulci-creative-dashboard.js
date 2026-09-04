@@ -177,6 +177,7 @@ function option(select, values, allLabel) {
 }
 
 function suggestions(list, values) {
+  if (!list) return;
   const options = [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
   list.innerHTML = options.map((value) => `<option value="${esc(value)}"></option>`).join("");
 }
@@ -189,16 +190,21 @@ function refreshOptions() {
   const channel = $("#channel").value;
   option($("#channel"), state.rows.map((row) => row.channel || row.partner_name), "全部渠道");
   const base = state.rows.filter((row) => !channel || (row.channel || row.partner_name) === channel);
-  suggestions($("#campaignOptions"), base.map((row) => row.campaign_network));
+  const campaignList = $("#campaignOptions");
+  if (campaignList) suggestions(campaignList, base.map((row) => row.campaign_network));
+  else option($("#campaign"), base.map((row) => row.campaign_network), "全部 Campaign");
   const campaign = $("#campaign").value.trim();
-  suggestions($("#groupOptions"), base.filter((row) => containsFilter(row.campaign_network, campaign)).map((row) => row.adgroup_network));
+  const groupValues = base.filter((row) => containsFilter(row.campaign_network, campaign)).map((row) => row.adgroup_network);
+  const groupList = $("#groupOptions");
+  if (groupList) suggestions(groupList, groupValues);
+  else option($("#group"), groupValues, "全部 Group");
 }
 
 function applyFilters() {
   const channel = $("#channel").value;
   const campaign = $("#campaign").value;
   const group = $("#group").value;
-  const videoMatch = $("#videoMatch").value;
+  const videoMatch = $("#videoMatch")?.value || "";
   const query = $("#creativeSearch").value.trim().toLowerCase();
   state.filtered = state.rows.filter((row) => {
     const creativeName = row.creative_network || row.creative_id_network || "";
@@ -642,7 +648,7 @@ renderEventMenu();
 $("#queryBtn").onclick = () => loadData();
 $("#refreshBtn").onclick = () => loadData(true);
 $("#resetBtn").onclick = () => {
-  $("#channel").value = $("#campaign").value = $("#group").value = $("#videoMatch").value = $("#creativeSearch").value = "";
+  ["#channel", "#campaign", "#group", "#videoMatch", "#creativeSearch"].forEach((selector) => { const control = $(selector); if (control) control.value = ""; });
   state.metricFilters.clear();
   closeMetricFilter();
   refreshOptions();
@@ -651,7 +657,7 @@ $("#resetBtn").onclick = () => {
 $("#channel").onchange = () => { $("#campaign").value = $("#group").value = ""; refreshOptions(); applyFilters(); };
 $("#campaign").oninput = () => { $("#group").value = ""; refreshOptions(); applyFilters(); };
 $("#group").oninput = applyFilters;
-$("#videoMatch").onchange = applyFilters;
+if ($("#videoMatch")) $("#videoMatch").onchange = applyFilters;
 $("#creativeSearch").oninput = applyFilters;
 $("#pivotMode").onchange = () => {
   localStorage.setItem("dulci-pivot-mode", $("#pivotMode").value);

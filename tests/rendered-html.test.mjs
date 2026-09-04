@@ -32,6 +32,24 @@ test("root redirects to the Dulci dashboard", async () => {
   assert.equal(response.headers.get("location"), "http://localhost/dulci-creative-dashboard.html");
 });
 
+test("production dashboard route serves uncached matching HTML", async () => {
+  const worker = await loadWorker();
+  const response = await worker.fetch(
+    new Request("http://localhost/dulci-creative-dashboard"),
+    {
+      ASSETS: {
+        fetch: async () => new Response("<html>current dashboard</html>", { headers: { etag: "old" } }),
+      },
+    },
+    testContext,
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("cache-control"), "no-store, no-cache, must-revalidate, max-age=0");
+  assert.equal(response.headers.get("etag"), null);
+  assert.match(await response.text(), /current dashboard/);
+});
+
 test("Feishu assets endpoint fails safely when secrets are absent", async () => {
   const worker = await loadWorker();
   const response = await worker.fetch(

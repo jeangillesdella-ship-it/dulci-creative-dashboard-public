@@ -286,10 +286,28 @@ async function dulciReport(request: Request, env: Env): Promise<Response> {
   }
 }
 
+async function dashboardPage(request: Request, env: Env): Promise<Response | null> {
+  if (!env.ASSETS) return null;
+  const assetUrl = new URL("/dulci-creative-dashboard.html?release=20260904-2", request.url);
+  const asset = await env.ASSETS.fetch(new Request(assetUrl, { method: request.method, headers: request.headers }));
+  if (!asset.ok) return null;
+  const headers = new Headers(asset.headers);
+  headers.set("cache-control", "no-store, no-cache, must-revalidate, max-age=0");
+  headers.set("pragma", "no-cache");
+  headers.set("expires", "0");
+  headers.delete("etag");
+  return new Response(asset.body, { status: asset.status, headers });
+}
+
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     env = env || ({} as Env);
     const url = new URL(request.url);
+
+    if (["/", "/dulci-creative-dashboard", "/dulci-creative-dashboard/", "/dulci-creative-dashboard.html"].includes(url.pathname)) {
+      const page = await dashboardPage(request, env);
+      if (page) return page;
+    }
 
     if (url.pathname === "/api/adjust/dulci-creatives") return dulciReport(request, env);
     if (url.pathname === "/api/feishu/creative-assets") return feishuAssets(request, env);

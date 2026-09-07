@@ -230,6 +230,8 @@ async function adjustReport(token: string, period: string, dimensions: string, m
     cohort_maturity: "immature",
     sandbox: "false",
     format_dates: "false",
+    full_data: "true",
+    readable_names: "false",
   });
   if (sort) params.set("sort", sort);
   const response = await fetch(`https://automate.adjust.com/reports-service/report?${params}`, {

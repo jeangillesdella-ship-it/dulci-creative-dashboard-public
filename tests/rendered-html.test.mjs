@@ -88,3 +88,9 @@ test("dashboard loads Feishu assets and renders inline video previews", async ()
   assert.match(css, /\.video-play \.video-thumb/);
   assert.match(css, /object-fit:contain/);
 });
+
+test("live Adjust reports request the complete result set", async () => {
+  const worker = await readFile(new URL("../worker/index.ts", import.meta.url), "utf8");
+  assert.match(worker, /full_data:\s*"true"/);
+  assert.match(worker, /readable_names:\s*"false"/);
+});

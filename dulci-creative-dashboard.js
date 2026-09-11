@@ -190,6 +190,23 @@ function platformMatches(row, platform) {
   return String(row.os_name || "").trim().toLowerCase() === platform;
 }
 
+function rowsFromSnapshot(snapshot, start, end, platform) {
+  if (snapshot.rowFormat !== "arrays-v1") {
+    return snapshot.rows.filter((row) => row.day >= start && row.day <= end && platformMatches(row, platform));
+  }
+  if (!Array.isArray(snapshot.fields) || !snapshot.fields.length) throw new Error("公开数据快照字段缺失");
+  const dayIndex = snapshot.fields.indexOf("day");
+  const platformIndex = snapshot.fields.indexOf("os_name");
+  if (dayIndex < 0 || platformIndex < 0) throw new Error("公开数据快照缺少日期或系统字段");
+  return snapshot.rows
+    .filter((values) => {
+      const day = values[dayIndex] || "";
+      const os = String(values[platformIndex] || "").trim().toLowerCase();
+      return day >= start && day <= end && (!platform || platform === "all" || os === platform);
+    })
+    .map((values) => Object.fromEntries(snapshot.fields.map((field, index) => [field, values[index]])));
+}
+
 function option(select, values, allLabel) {
   const current = select.value;
   const options = [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
@@ -565,7 +582,7 @@ async function loadData(refresh = false) {
       const snapshotResponse = await fetch(`./data/latest.json${refresh ? `?t=${Date.now()}` : ""}`, { cache: refresh ? "no-store" : "default" });
       const snapshot = await snapshotResponse.json();
       if (!snapshotResponse.ok || !Array.isArray(snapshot.rows)) throw new Error(snapshot.error || "公开数据快照读取失败");
-      const rows = snapshot.rows.filter((row) => row.day >= $("#startDate").value && row.day <= $("#endDate").value && platformMatches(row, platform));
+      const rows = rowsFromSnapshot(snapshot, $("#startDate").value, $("#endDate").value, platform);
       data = { ...snapshot, rows, trend: aggregateTrendRows(rows), cached: true };
       snapshotMode = true;
     }

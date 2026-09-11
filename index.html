@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Dulci · Google、Meta、TikTok 素材转化看板</title>
-  <link rel="stylesheet" href="./dulci-creative-dashboard.css?v=20260911-public" />
+  <link rel="stylesheet" href="./dulci-creative-dashboard.css?v=20260911-platform" />
 </head>
 <body>
   <div class="app">
@@ -22,7 +22,7 @@
       <section class="filter-card">
         <label>开始日期<input id="startDate" type="date" /></label>
         <label>结束日期<input id="endDate" type="date" /></label>
-        <label>系统<select id="platform"><option value="all">全部系统</option><option value="ios">iOS</option><option value="android">Android</option></select></label>
+        <label class="platform-filter">投放系统<select id="platform"><option value="all">全部（iOS + Android）</option><option value="ios">iOS</option><option value="android">Android</option></select></label>
         <label>渠道<select id="channel"><option value="">全部渠道</option></select></label>
         <label>Campaign<input id="campaign" list="campaignOptions" placeholder="输入或选择 Campaign" autocomplete="off"/><datalist id="campaignOptions"></datalist></label>
         <label>Group<input id="group" list="groupOptions" placeholder="输入或选择 Group" autocomplete="off"/><datalist id="groupOptions"></datalist></label>
@@ -56,6 +56,6 @@
       <footer>数据源：Adjust Report Service API · 最近 93 天公开快照 · app vpis1uwa4dmo · iOS + Android · network 花费 · immature cohort · Google + Meta + TikTok · 收入口径：dulci_subpur_d14_s2s_w1_revenue_cohort</footer>
     </main>
   </div>
-  <script src="./dulci-creative-dashboard.js?v=20260911-public"></script>
+  <script src="./dulci-creative-dashboard.js?v=20260911-platform"></script>
 </body>
 </html>

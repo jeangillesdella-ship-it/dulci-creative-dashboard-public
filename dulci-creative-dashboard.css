@@ -15,5 +15,9 @@
 .video-play::after{background:#11182d20}
 .video-play .video-thumb{opacity:0;transition:opacity .18s ease}.video-play.preview-ready .video-thumb{opacity:1}.video-play.preview-error::before{position:absolute;z-index:1;inset:auto 4px 5px;color:#98a2b8;content:"预览失败";font-size:8px;text-align:center}
 .filter-card{grid-template-columns:repeat(8,minmax(115px,1fr)) auto auto}
+.platform-filter{padding:7px 8px;border:1px solid #cfc9ff;border-radius:10px;color:#5144c5;background:#f3f1ff;box-shadow:0 0 0 3px #6757e80a}
+.platform-filter::before{content:"iOS / Android";justify-self:end;margin-bottom:-18px;color:#8a80e7;font-size:8px;font-weight:800;letter-spacing:.03em;pointer-events:none}
+.platform-filter select{border-color:#bdb5ff;background:#fff;color:#342a9b;font-weight:800}
+.platform-filter select:focus{border-color:var(--purple);box-shadow:0 0 0 3px #6757e81c}
 @media(max-width:1450px){.filter-card{grid-template-columns:repeat(4,1fr)}}
 @media(max-width:900px){.filter-card{grid-template-columns:1fr 1fr}}

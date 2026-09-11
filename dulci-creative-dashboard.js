@@ -172,6 +172,24 @@ function aggregateCreativeRows(rows) {
   return [...grouped.values()].map((row) => ({ ...row, ecpi_all: n(row.installs) ? n(row.cost) / n(row.installs) : 0 }));
 }
 
+function aggregateTrendRows(rows) {
+  const grouped = new Map();
+  for (const row of rows) {
+    const channel = row.channel || row.partner_name || "未知渠道";
+    const key = `${row.day || ""}\u001f${channel}`;
+    if (!grouped.has(key)) grouped.set(key, { day: row.day || "", channel, partner_name: row.partner_name || channel, cost: 0, [REVENUE_METRIC]: 0 });
+    const current = grouped.get(key);
+    current.cost += n(row.cost);
+    current[REVENUE_METRIC] += n(row[REVENUE_METRIC]);
+  }
+  return [...grouped.values()].sort((a, b) => String(a.day).localeCompare(String(b.day)));
+}
+
+function platformMatches(row, platform) {
+  if (!platform || platform === "all") return true;
+  return String(row.os_name || "").trim().toLowerCase() === platform;
+}
+
 function option(select, values, allLabel) {
   const current = select.value;
   const options = [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
@@ -537,9 +555,20 @@ async function loadData(refresh = false) {
   try {
     const params = new URLSearchParams({ start: $("#startDate").value, end: $("#endDate").value, platform });
     if (refresh) params.set("refresh", "1");
-    const response = await fetch(`${LIVE_DATA_URL}?${params}`, { cache: "no-store" });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Adjust 查询失败");
+    let data;
+    let snapshotMode = false;
+    try {
+      const response = await fetch(`${LIVE_DATA_URL}?${params}`, { cache: "no-store" });
+      data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Adjust 查询失败");
+    } catch {
+      const snapshotResponse = await fetch(`./data/latest.json${refresh ? `?t=${Date.now()}` : ""}`, { cache: refresh ? "no-store" : "default" });
+      const snapshot = await snapshotResponse.json();
+      if (!snapshotResponse.ok || !Array.isArray(snapshot.rows)) throw new Error(snapshot.error || "公开数据快照读取失败");
+      const rows = snapshot.rows.filter((row) => row.day >= $("#startDate").value && row.day <= $("#endDate").value && platformMatches(row, platform));
+      data = { ...snapshot, rows, trend: aggregateTrendRows(rows), cached: true };
+      snapshotMode = true;
+    }
     state.rows = aggregateCreativeRows(data.rows || []);
     state.trend = data.trend || [];
     state.fetchedAt = data.fetchedAt;
@@ -547,10 +576,10 @@ async function loadData(refresh = false) {
     refreshOptions();
     applyFilters();
     $("#sourceDot").className = "ok";
-    $("#sourceState").textContent = `Adjust ${platformLabel} 实时数据`;
-    $("#freshness").textContent = `更新于 ${new Date(data.fetchedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}${data.cached ? " · 缓存" : ""}`;
+    $("#sourceState").textContent = snapshotMode ? `Adjust ${platformLabel} 公开快照` : `Adjust ${platformLabel} 实时数据`;
+    $("#freshness").textContent = `更新于 ${new Date(data.fetchedAt).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}${data.cached ? " · 快照" : ""}`;
     $("#message").className = "message success";
-    $("#message").textContent = `已实时加载 ${state.rows.length} 条投放组合 · ${platformLabel} · Google、Meta 与 TikTok · ${$("#startDate").value} 至 ${$("#endDate").value} · ${data.cached ? "5 分钟缓存" : "刚刚从 Adjust 更新"} · 收入仅使用 Subpur 口径`;
+    $("#message").textContent = `${snapshotMode ? "已加载公开数据快照" : "已实时加载"} ${state.rows.length} 条投放组合 · ${platformLabel} · Google、Meta 与 TikTok · ${$("#startDate").value} 至 ${$("#endDate").value} · ${snapshotMode ? `快照生成于 ${new Date(data.fetchedAt).toLocaleString("zh-CN")}` : data.cached ? "5 分钟缓存" : "刚刚从 Adjust 更新"} · 收入仅使用 Subpur 口径`;
   } catch (error) {
     $("#sourceState").textContent = "Adjust 连接失败";
     $("#message").className = "message error";

@@ -579,7 +579,7 @@ async function loadData(refresh = false) {
       data = await response.json();
       if (!response.ok) throw new Error(data.error || "Adjust 查询失败");
     } catch {
-      const snapshotResponse = await fetch(`./data/latest.json${refresh ? `?t=${Date.now()}` : ""}`, { cache: refresh ? "no-store" : "default" });
+      const snapshotResponse = await fetch(`./data/latest.json?t=${refresh ? Date.now() : "latest"}`, { cache: "no-store" });
       const snapshot = await snapshotResponse.json();
       if (!snapshotResponse.ok || !Array.isArray(snapshot.rows)) throw new Error(snapshot.error || "公开数据快照读取失败");
       const rows = rowsFromSnapshot(snapshot, $("#startDate").value, $("#endDate").value, platform);

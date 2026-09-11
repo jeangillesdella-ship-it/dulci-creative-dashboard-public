@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { basename, extname, join, relative } from "node:path";
 
 const owner = "jeangillesdella-ship-it";
@@ -9,6 +9,7 @@ const tag = "dulci-media";
 const projectRoot = "/Users/leon/Documents/优化建议/dulci-public-site";
 const videoRoot = "/Users/leon/Documents/优化建议/creative-media/videos";
 const thumbnailRoot = "/Users/leon/Documents/优化建议/creative-media/thumbnails";
+const publicThumbnailRoot = join(projectRoot, "public", "media", "thumbnails");
 const videoPattern = /\.(mp4|mov|m4v|webm|avi|mkv)$/i;
 
 function githubCredential() {
@@ -152,6 +153,8 @@ for (const filePath of videoFiles) {
   try {
     const thumbnailStat = await stat(thumbnailPath);
     hasThumbnail = true;
+    await mkdir(publicThumbnailRoot, { recursive: true });
+    await copyFile(thumbnailPath, join(publicThumbnailRoot, thumbnailName));
     const currentThumbnail = existing.get(thumbnailName);
     if (!currentThumbnail || Number(currentThumbnail.size) !== thumbnailStat.size) {
       if (currentThumbnail) await github(`/repos/${owner}/${repo}/releases/assets/${currentThumbnail.id}`, { method: "DELETE" });
@@ -168,7 +171,7 @@ for (const filePath of videoFiles) {
     size: fileStat.size,
     updatedAt: fileStat.mtime.toISOString(),
     mediaUrl: `https://github.com/${owner}/${repo}/releases/download/${encodedTag}/${encodeURIComponent(videoName)}`,
-    thumbnailUrl: hasThumbnail ? `https://github.com/${owner}/${repo}/releases/download/${encodedTag}/${encodeURIComponent(thumbnailName)}` : "",
+    thumbnailUrl: hasThumbnail ? `./media/thumbnails/${encodeURIComponent(thumbnailName)}` : "",
     source: "public-github-release",
   });
 }

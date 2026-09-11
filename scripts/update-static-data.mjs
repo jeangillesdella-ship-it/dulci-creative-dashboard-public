@@ -40,8 +40,15 @@ const response = await fetch(`https://automate.adjust.com/reports-service/report
 const body = await response.text();
 if (!response.ok) throw new Error(`Adjust request failed: ${response.status} ${body.slice(0, 180)}`);
 const report = JSON.parse(body);
+const dimensionFields = params.get("dimensions").split(",");
+const knownFields = [...dimensionFields, ...metrics];
+const extraFields = [...new Set((report.rows || []).flatMap((row) => Object.keys(row)))]
+  .filter((field) => !knownFields.includes(field));
+const fields = [...knownFields, ...extraFields];
 const payload = {
-  rows: report.rows || [],
+  rowFormat: "arrays-v1",
+  fields,
+  rows: (report.rows || []).map((row) => fields.map((field) => row[field] ?? null)),
   fetchedAt: new Date().toISOString(),
   datePeriod: "最近 93 天（UTC 公开快照）",
   source: "Adjust Report Service API · Google + Meta + TikTok · iOS + Android · daily creative grain · subpur revenue",
@@ -50,4 +57,4 @@ const payload = {
 
 await mkdir("public/data", { recursive: true });
 await writeFile("public/data/latest.json", JSON.stringify(payload));
-console.log(`Saved ${payload.rows.length} daily creative rows at ${payload.fetchedAt}`);
+console.log(`Saved ${payload.rows.length} compact daily creative rows at ${payload.fetchedAt}`);

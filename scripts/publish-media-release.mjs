@@ -145,7 +145,7 @@ for (const filePath of videoFiles) {
   const thumbnailName = `${id}.png`;
   const fileStat = await stat(filePath);
   const currentVideo = existing.get(videoName);
-  if (!currentVideo || Number(currentVideo.size) !== fileStat.size) {
+  if (!currentVideo || currentVideo.state !== "uploaded" || Number(currentVideo.size) !== fileStat.size) {
     if (currentVideo) await github(`/repos/${owner}/${repo}/releases/assets/${currentVideo.id}`, { method: "DELETE" });
     uploadQueue.push({ filePath, assetName: videoName });
   }
@@ -156,7 +156,7 @@ for (const filePath of videoFiles) {
     await mkdir(publicThumbnailRoot, { recursive: true });
     await copyFile(thumbnailPath, join(publicThumbnailRoot, thumbnailName));
     const currentThumbnail = existing.get(thumbnailName);
-    if (!currentThumbnail || Number(currentThumbnail.size) !== thumbnailStat.size) {
+    if (!currentThumbnail || currentThumbnail.state !== "uploaded" || Number(currentThumbnail.size) !== thumbnailStat.size) {
       if (currentThumbnail) await github(`/repos/${owner}/${repo}/releases/assets/${currentThumbnail.id}`, { method: "DELETE" });
       uploadQueue.push({ filePath: thumbnailPath, assetName: thumbnailName });
     }

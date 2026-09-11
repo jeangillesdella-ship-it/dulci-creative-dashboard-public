@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Dulci · Google、Meta、TikTok 素材转化看板</title>
-  <link rel="stylesheet" href="./dulci-creative-dashboard.css?v=20260911-external2" />
+  <link rel="stylesheet" href="./dulci-creative-dashboard.css?v=20260911-external3" />
 </head>
 <body>
   <div class="app">
@@ -45,6 +45,7 @@
       <section class="panel table-panel">
         <div class="panel-head table-head"><div><h2>素材数据透视表</h2><p id="tableMeta">默认直接按素材汇总</p><p id="videoSyncStatus" class="video-sync-status">正在检查视频素材…</p></div><div class="table-actions"><label class="pivot-mode-label">查看层级<select id="pivotMode"><option value="creative">素材（直接查看）</option><option value="platformCreative">系统 → 素材</option><option value="platformChannelCreative">系统 → 渠道 → 素材</option><option value="channelCreative">渠道 → 素材</option><option value="campaignCreative">Campaign → 素材</option><option value="groupCreative">Group → 素材</option><option value="full">渠道 → Campaign → Group → 素材</option></select></label><button id="expandAllBtn" class="ghost">全部展开</button><button id="collapseAllBtn" class="ghost">全部收起</button><button id="clearMetricFiltersBtn" class="ghost" disabled>清除指标筛选</button><label>排序<select id="sortBy"><option value="subpurRevenue">Subpur 收入</option><option value="subpurEvents">Subpur 事件</option><option value="cost">花费</option><option value="roas">Subpur ROAS</option><option value="installs">安装</option></select></label><button id="exportBtn" class="ghost">导出当前结果</button></div></div>
         <div class="table-wrap pivot-wrap"><table class="pivot-table"><thead><tr id="pivotHead"></tr></thead><tbody id="creativeRows"></tbody></table></div>
+        <div class="load-more-wrap"><button id="loadMoreRowsBtn" type="button" class="ghost" hidden>继续加载</button></div>
         <div id="metricFilterPopover" class="metric-filter-popover" hidden><div class="metric-filter-title"><b id="metricFilterTitle">指标筛选</b><button id="closeMetricFilter" type="button">×</button></div><label>最小值<input id="metricFilterMin" type="number" step="any" placeholder="不限" /></label><label>最大值<input id="metricFilterMax" type="number" step="any" placeholder="不限" /></label><div class="metric-filter-actions"><button id="removeMetricFilter" type="button" class="ghost">清除此列</button><button id="applyMetricFilter" type="button">应用筛选</button></div></div>
       </section>
       <div id="videoModal" class="video-modal" hidden role="dialog" aria-modal="true" aria-labelledby="videoModalTitle">
@@ -56,6 +57,6 @@
       <footer>数据源：Adjust Report Service API · 最近 93 天公开快照 · app vpis1uwa4dmo · iOS + Android · network 花费 · immature cohort · Google + Meta + TikTok · 收入口径：dulci_subpur_d14_s2s_w1_revenue_cohort</footer>
     </main>
   </div>
-  <script src="./dulci-creative-dashboard.js?v=20260911-external2"></script>
+  <script src="./dulci-creative-dashboard.js?v=20260911-external3"></script>
 </body>
 </html>

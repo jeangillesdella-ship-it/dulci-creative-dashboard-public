@@ -65,6 +65,7 @@ const state = {
 let previewObserver = null;
 
 const PIVOT_DIMENSIONS = {
+  platform: { key: "platform", label: "系统", value: (row) => row.os_name === "ios" ? "iOS" : row.os_name === "android" ? "Android" : row.os_name || "未知系统", id: (row) => row.os_name || "unknown-platform" },
   channel: { key: "channel", label: "渠道", value: (row) => row.channel || row.partner_name || "未知渠道", id: (row) => row.channel || row.partner_name || "unknown-channel" },
   campaign: { key: "campaign", label: "Campaign", value: (row) => row.campaign_network || "未命名 Campaign", id: (row) => row.campaign_id_network || row.campaign_network || "unknown-campaign" },
   group: { key: "group", label: "Group", value: (row) => row.adgroup_network || "未命名 Group", id: (row) => row.adgroup_id_network || row.adgroup_network || "unknown-group" },
@@ -73,6 +74,8 @@ const PIVOT_DIMENSIONS = {
 
 const PIVOT_MODES = {
   creative: { label: "素材", dimensions: [PIVOT_DIMENSIONS.creative] },
+  platformCreative: { label: "系统 → 素材", dimensions: [PIVOT_DIMENSIONS.platform, PIVOT_DIMENSIONS.creative] },
+  platformChannelCreative: { label: "系统 → 渠道 → 素材", dimensions: [PIVOT_DIMENSIONS.platform, PIVOT_DIMENSIONS.channel, PIVOT_DIMENSIONS.creative] },
   channelCreative: { label: "渠道 → 素材", dimensions: [PIVOT_DIMENSIONS.channel, PIVOT_DIMENSIONS.creative] },
   campaignCreative: { label: "Campaign → 素材", dimensions: [PIVOT_DIMENSIONS.campaign, PIVOT_DIMENSIONS.creative] },
   groupCreative: { label: "Group → 素材", dimensions: [PIVOT_DIMENSIONS.group, PIVOT_DIMENSIONS.creative] },
@@ -152,7 +155,7 @@ function rowsForPeriod(rows, start, end) {
 
 function aggregateCreativeRows(rows) {
   const dimensions = [
-    "partner_name", "channel", "campaign_id_network", "campaign_network",
+    "os_name", "partner_name", "channel", "campaign_id_network", "campaign_network",
     "adgroup_id_network", "adgroup_network", "creative_id_network", "creative_network"
   ];
   const additive = [
@@ -528,9 +531,11 @@ async function loadCreativeAssets(refresh = false) {
 async function loadData(refresh = false) {
   $("#queryBtn").disabled = $("#refreshBtn").disabled = true;
   $("#message").className = "message";
-  $("#message").textContent = "正在从 Adjust 拉取 Google、Meta 与 TikTok 投放数据…";
+  const platform = $("#platform").value || "all";
+  const platformLabel = platform === "ios" ? "iOS" : platform === "android" ? "Android" : "iOS + Android";
+  $("#message").textContent = `正在从 Adjust 拉取 ${platformLabel} 的 Google、Meta 与 TikTok 投放数据…`;
   try {
-    const params = new URLSearchParams({ start: $("#startDate").value, end: $("#endDate").value });
+    const params = new URLSearchParams({ start: $("#startDate").value, end: $("#endDate").value, platform });
     if (refresh) params.set("refresh", "1");
     const response = await fetch(`${LIVE_DATA_URL}?${params}`, { cache: "no-store" });
     const data = await response.json();
@@ -542,10 +547,10 @@ async function loadData(refresh = false) {
     refreshOptions();
     applyFilters();
     $("#sourceDot").className = "ok";
-    $("#sourceState").textContent = "Adjust 实时数据";
+    $("#sourceState").textContent = `Adjust ${platformLabel} 实时数据`;
     $("#freshness").textContent = `更新于 ${new Date(data.fetchedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}${data.cached ? " · 缓存" : ""}`;
     $("#message").className = "message success";
-    $("#message").textContent = `已实时加载 ${state.rows.length} 条投放组合 · Google、Meta 与 TikTok · ${$("#startDate").value} 至 ${$("#endDate").value} · ${data.cached ? "5 分钟缓存" : "刚刚从 Adjust 更新"} · 收入仅使用 Subpur 口径`;
+    $("#message").textContent = `已实时加载 ${state.rows.length} 条投放组合 · ${platformLabel} · Google、Meta 与 TikTok · ${$("#startDate").value} 至 ${$("#endDate").value} · ${data.cached ? "5 分钟缓存" : "刚刚从 Adjust 更新"} · 收入仅使用 Subpur 口径`;
   } catch (error) {
     $("#sourceState").textContent = "Adjust 连接失败";
     $("#message").className = "message error";
@@ -562,14 +567,14 @@ function exportCsv() {
     { label: `${event.label} 单价`, value: (row) => n(row[event.key]) ? n(row.cost) / n(row[event.key]) : "" }
   ]);
   const columns = [
-    { key: "channel", label: "渠道" }, { key: "campaign_network", label: "Campaign" }, { key: "adgroup_network", label: "Group" }, { key: "creative_id_network", label: "Creative ID" }, { key: "creative_network", label: "素材名称" },
+    { key: "os_name", label: "系统" }, { key: "channel", label: "渠道" }, { key: "campaign_network", label: "Campaign" }, { key: "adgroup_network", label: "Group" }, { key: "creative_id_network", label: "Creative ID" }, { key: "creative_network", label: "素材名称" },
     { key: "installs", label: "安装" }, { key: "cost", label: "花费" }, { key: "ecpi_all", label: "eCPI" }, { key: REVENUE_METRIC, label: "Subpur 收入" }, { key: "roas", label: "Subpur ROAS" }, ...eventColumns
   ];
   const quote = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
   const csv = [columns.map((column) => quote(column.label)).join(","), ...state.filtered.map((row) => columns.map((column) => quote(column.value ? column.value(row) : row[column.key])).join(","))].join("\n");
   const anchor = document.createElement("a");
   anchor.href = URL.createObjectURL(new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" }));
-  anchor.download = `dulci-creative-subpur-${$("#startDate").value}-${$("#endDate").value}.csv`;
+  anchor.download = `dulci-creative-subpur-${$("#platform").value}-${$("#startDate").value}-${$("#endDate").value}.csv`;
   anchor.click();
   URL.revokeObjectURL(anchor.href);
 }
@@ -642,17 +647,25 @@ function applyMetricFilter() {
 
 $("#startDate").value = iso(-10);
 $("#endDate").value = iso(0);
+const savedPlatform = localStorage.getItem("dulci-platform");
+$("#platform").value = savedPlatform === "ios" || savedPlatform === "android" ? savedPlatform : "all";
 const savedPivotMode = localStorage.getItem("dulci-pivot-mode");
 $("#pivotMode").value = PIVOT_MODES[savedPivotMode] ? savedPivotMode : "creative";
 renderEventMenu();
 $("#queryBtn").onclick = () => loadData();
 $("#refreshBtn").onclick = () => loadData(true);
 $("#resetBtn").onclick = () => {
+  $("#platform").value = "all";
+  localStorage.setItem("dulci-platform", "all");
   ["#channel", "#campaign", "#group", "#videoMatch", "#creativeSearch"].forEach((selector) => { const control = $(selector); if (control) control.value = ""; });
   state.metricFilters.clear();
   closeMetricFilter();
-  refreshOptions();
-  applyFilters();
+  loadData();
+};
+$("#platform").onchange = () => {
+  localStorage.setItem("dulci-platform", $("#platform").value);
+  $("#channel").value = $("#campaign").value = $("#group").value = "";
+  loadData();
 };
 $("#channel").onchange = () => { $("#campaign").value = $("#group").value = ""; refreshOptions(); applyFilters(); };
 $("#campaign").oninput = () => { $("#group").value = ""; refreshOptions(); applyFilters(); };

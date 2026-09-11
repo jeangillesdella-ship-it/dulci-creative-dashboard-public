@@ -216,7 +216,7 @@ function periodFrom(url: URL): string {
   return `${start}:${end}`;
 }
 
-async function adjustReport(token: string, period: string, dimensions: string, metrics: string, sort?: string) {
+async function adjustReport(token: string, period: string, dimensions: string, metrics: string, sort?: string, platform = "all") {
   const params = new URLSearchParams({
     date_period: period,
     dimensions,
@@ -233,6 +233,7 @@ async function adjustReport(token: string, period: string, dimensions: string, m
     full_data: "true",
     readable_names: "false",
   });
+  if (platform === "ios" || platform === "android") params.set("os_name__in", platform);
   if (sort) params.set("sort", sort);
   const response = await fetch(`https://automate.adjust.com/reports-service/report?${params}`, {
     headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
@@ -251,8 +252,11 @@ async function dulciReport(request: Request, env: Env): Promise<Response> {
     if (!env.ADJUST_API_TOKEN) throw new Error("公开看板尚未配置 Adjust 数据连接");
     const url = new URL(request.url);
     const period = periodFrom(url);
+    const requestedPlatform = String(url.searchParams.get("platform") || "all").toLowerCase();
+    const platform = requestedPlatform === "ios" || requestedPlatform === "android" ? requestedPlatform : "all";
     const refresh = url.searchParams.get("refresh") === "1";
-    const cached = reportCache.get(period);
+    const cacheKey = `${period}:${platform}`;
+    const cached = reportCache.get(cacheKey);
     if (!refresh && cached && Date.now() - cached.cachedAt < 5 * 60 * 1000) {
       return json({ ...cached.payload, cached: true });
     }
@@ -260,15 +264,18 @@ async function dulciReport(request: Request, env: Env): Promise<Response> {
       adjustReport(
         env.ADJUST_API_TOKEN,
         period,
-        "partner_name,channel,campaign_id_network,campaign_network,adgroup_id_network,adgroup_network,creative_id_network,creative_network",
+        "os_name,partner_name,channel,campaign_id_network,campaign_network,adgroup_id_network,adgroup_network,creative_id_network,creative_network",
         creativeMetrics.join(","),
         "-dulci_subpur_d14_s2s_w1_revenue_cohort",
+        platform,
       ),
       adjustReport(
         env.ADJUST_API_TOKEN,
         period,
-        "day,partner_name,channel",
+        "day,os_name,partner_name,channel",
         "installs,cost,dulci_subpur_d7_s2s_w1_events_cohort,dulci_subpur_d14_s2s_w1_revenue_cohort,retained_users_d1",
+        undefined,
+        platform,
       ),
     ]);
     const payload = {
@@ -276,11 +283,13 @@ async function dulciReport(request: Request, env: Env): Promise<Response> {
       totals: creativeReport.totals || {},
       trend: trendReport.rows || [],
       datePeriod: period,
-      source: "Adjust Report Service API · Google + Meta + TikTok · creative grain · subpur revenue",
+      platform,
+      supportedPlatforms: ["all", "ios", "android"],
+      source: `Adjust Report Service API · Google + Meta + TikTok · ${platform === "all" ? "iOS + Android" : platform} · creative grain · subpur revenue`,
       fetchedAt: new Date().toISOString(),
       warnings: [...(creativeReport.warnings || []), ...(trendReport.warnings || [])],
     };
-    reportCache.set(period, { cachedAt: Date.now(), payload });
+    reportCache.set(cacheKey, { cachedAt: Date.now(), payload });
     if (reportCache.size > 20) reportCache.delete(reportCache.keys().next().value as string);
     return json({ ...payload, cached: false });
   } catch (error) {
@@ -290,7 +299,7 @@ async function dulciReport(request: Request, env: Env): Promise<Response> {
 
 async function dashboardPage(request: Request, env: Env): Promise<Response | null> {
   if (!env.ASSETS) return null;
-  const assetUrl = new URL("/dulci-creative-dashboard.html?release=20260904-2", request.url);
+  const assetUrl = new URL("/dulci-creative-dashboard.html?release=20260911-ios", request.url);
   const asset = await env.ASSETS.fetch(new Request(assetUrl, { method: request.method, headers: request.headers }));
   if (!asset.ok) return null;
   const headers = new Headers(asset.headers);

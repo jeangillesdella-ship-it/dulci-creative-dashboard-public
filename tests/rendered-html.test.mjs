@@ -75,6 +75,8 @@ test("dashboard loads Feishu assets and renders inline video previews", async ()
   assert.match(html, /id="videoModal"/);
   assert.match(html, /id="creativeVideo"/);
   assert.match(html, /id="videoMatch"/);
+  assert.match(html, /id="platform"/);
+  assert.match(html, /<option value="ios">iOS<\/option>/);
   assert.match(html, /id="campaignOptions"/);
   assert.match(script, /\/api\/feishu\/creative-assets/);
   assert.match(script, /\/api\/adjust\/dulci-creatives/);
@@ -93,4 +95,6 @@ test("live Adjust reports request the complete result set", async () => {
   const worker = await readFile(new URL("../worker/index.ts", import.meta.url), "utf8");
   assert.match(worker, /full_data:\s*"true"/);
   assert.match(worker, /readable_names:\s*"false"/);
+  assert.match(worker, /os_name__in/);
+  assert.match(worker, /day,os_name,partner_name,channel/);
 });

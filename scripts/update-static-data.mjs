@@ -20,7 +20,7 @@ const metrics = [
 
 const params = new URLSearchParams({
   date_period: "-92d:-0d",
-  dimensions: "day,partner_name,channel,campaign_id_network,campaign_network,adgroup_id_network,adgroup_network,creative_id_network,creative_network",
+  dimensions: "day,os_name,partner_name,channel,campaign_id_network,campaign_network,adgroup_id_network,adgroup_network,creative_id_network,creative_network",
   metrics: metrics.join(","),
   app_token__in: "vpis1uwa4dmo",
   partner_name__in: "Facebook,TikTok for Business,Google Ads",
@@ -44,7 +44,7 @@ const payload = {
   rows: report.rows || [],
   fetchedAt: new Date().toISOString(),
   datePeriod: "最近 93 天（UTC 公开快照）",
-  source: "Adjust Report Service API · Google + Meta + TikTok · daily creative grain · subpur revenue",
+  source: "Adjust Report Service API · Google + Meta + TikTok · iOS + Android · daily creative grain · subpur revenue",
   warnings: report.warnings || [],
 };
 

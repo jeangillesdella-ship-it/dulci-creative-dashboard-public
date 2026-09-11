@@ -21,3 +21,4 @@
 .platform-filter select:focus{border-color:var(--purple);box-shadow:0 0 0 3px #6757e81c}
 @media(max-width:1450px){.filter-card{grid-template-columns:repeat(4,1fr)}}
 @media(max-width:900px){.filter-card{grid-template-columns:1fr 1fr}}
+.load-more-wrap{display:flex;justify-content:center;padding:12px 0 2px}.load-more-wrap button{min-width:220px}

@@ -1,5 +1,6 @@
 const $ = (selector) => document.querySelector(selector);
 const LIVE_DATA_URL = "/api/adjust/dulci-creatives";
+const IS_STATIC_PUBLIC_HOST = location.hostname.endsWith(".github.io") || location.protocol === "file:";
 const REVENUE_METRIC = "dulci_subpur_d14_s2s_w1_revenue_cohort";
 const SUBPUR_EVENT_METRIC = "dulci_subpur_d7_s2s_w1_events_cohort";
 const EVENT_UNIT_COST_SUFFIX = "__unit_cost";
@@ -60,7 +61,8 @@ const state = {
   videoRecordsScanned: 0,
   videoFetchedAt: "",
   videoError: "",
-  videoSource: ""
+  videoSource: "",
+  visibleRowLimit: 100
 };
 let previewObserver = null;
 
@@ -255,6 +257,7 @@ function applyFilters() {
     (!query || `${row.creative_network} ${row.creative_id_network}`.toLowerCase().includes(query))
     );
   }).map(derived);
+  state.visibleRowLimit = 100;
   initializePivotExpansion();
   render();
 }
@@ -495,7 +498,8 @@ function renderPivot() {
   $("#pivotHead").innerHTML = `<th class="dimension-head">${mode.label}</th>${metricHeader("installs", "安装")}${metricHeader("cost", "花费")}${metricHeader("ecpi", "eCPI")}${metricHeader("subpurRevenue", "Subpur 收入")}${metricHeader("roas", "Subpur ROAS")}${events.map((event) => `${metricHeader(event.key, event.short, "event-count-column")}${metricHeader(eventUnitCostKey(event.key), `${event.short} 单价`, "event-unit-cost-column")}`).join("")}`;
   const tree = buildPivotTree(state.filtered);
   const allVisible = flattenPivot(tree);
-  const visible = allVisible.filter(passesMetricFilters);
+  const matching = allVisible.filter(passesMetricFilters);
+  const visible = matching.slice(0, state.visibleRowLimit);
   $("#creativeRows").innerHTML = visible.length ? visible.map((node) => {
     const current = nodeSummary(node);
     const hasChildren = node.children.size > 0;
@@ -519,7 +523,9 @@ function renderPivot() {
   const isDirect = mode.dimensions.length === 1;
   $("#expandAllBtn").disabled = $("#collapseAllBtn").disabled = isDirect;
   $("#clearMetricFiltersBtn").disabled = state.metricFilters.size === 0;
-  $("#tableMeta").textContent = `${state.filtered.length.toLocaleString("zh-CN")} 条广告组合 · ${mode.label} · 当前显示 ${visible.length} / ${allVisible.length} 行 · ${state.metricFilters.size} 个指标筛选 · ${events.length} 个事件指标`;
+  $("#tableMeta").textContent = `${state.filtered.length.toLocaleString("zh-CN")} 条广告组合 · ${mode.label} · 当前显示 ${visible.length} / ${matching.length} 行 · ${state.metricFilters.size} 个指标筛选 · ${events.length} 个事件指标`;
+  $("#loadMoreRowsBtn").hidden = visible.length >= matching.length;
+  $("#loadMoreRowsBtn").textContent = `继续加载（剩余 ${(matching.length - visible.length).toLocaleString("zh-CN")} 行）`;
   renderVideoSyncStatus();
   hydrateVideoPreviews();
 }
@@ -536,13 +542,15 @@ async function loadCreativeAssets(refresh = false) {
   state.videoError = "";
   try {
     let sourceData = null;
-    try {
-      const feishuResponse = await fetch(`/api/feishu/creative-assets${refresh ? "?refresh=1" : ""}`, { cache: refresh ? "no-store" : "default" });
-      const feishuData = await feishuResponse.json();
-      if (feishuResponse.ok && feishuData.assets?.length) sourceData = feishuData;
-      else if (!feishuResponse.ok) throw new Error(feishuData.error || "飞书素材读取失败");
-    } catch (error) {
-      state.videoError = error.message;
+    if (!IS_STATIC_PUBLIC_HOST) {
+      try {
+        const feishuResponse = await fetch(`/api/feishu/creative-assets${refresh ? "?refresh=1" : ""}`, { cache: refresh ? "no-store" : "default" });
+        const feishuData = await feishuResponse.json();
+        if (feishuResponse.ok && feishuData.assets?.length) sourceData = feishuData;
+        else if (!feishuResponse.ok) throw new Error(feishuData.error || "飞书素材读取失败");
+      } catch (error) {
+        state.videoError = error.message;
+      }
     }
     if (!sourceData) {
       const staticResponse = await fetch(`./data/assets.json${refresh ? `?t=${Date.now()}` : ""}`);
@@ -574,11 +582,16 @@ async function loadData(refresh = false) {
     if (refresh) params.set("refresh", "1");
     let data;
     let snapshotMode = false;
-    try {
-      const response = await fetch(`${LIVE_DATA_URL}?${params}`, { cache: "no-store" });
-      data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Adjust 查询失败");
-    } catch {
+    if (!IS_STATIC_PUBLIC_HOST) {
+      try {
+        const response = await fetch(`${LIVE_DATA_URL}?${params}`, { cache: "no-store" });
+        data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Adjust 查询失败");
+      } catch {
+        data = null;
+      }
+    }
+    if (!data) {
       const snapshotResponse = await fetch(`./data/latest.json?t=${refresh ? Date.now() : "latest"}`, { cache: "no-store" });
       const snapshot = await snapshotResponse.json();
       if (!snapshotResponse.ok || !Array.isArray(snapshot.rows)) throw new Error(snapshot.error || "公开数据快照读取失败");
@@ -729,6 +742,7 @@ $("#sortBy").onchange = () => {
   renderPivot();
 };
 $("#exportBtn").onclick = exportCsv;
+$("#loadMoreRowsBtn").onclick = () => { state.visibleRowLimit += 100; renderPivot(); };
 $("#clearMetricFiltersBtn").onclick = () => {
   state.metricFilters.clear();
   closeMetricFilter();

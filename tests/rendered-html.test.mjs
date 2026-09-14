@@ -112,7 +112,7 @@ test("creative pivot exposes real revenue and ROI metrics", async () => {
   assert.match(script, /realRevenueValue \/ cost/);
 });
 
-test("creative pivot replaces Subpur columns with CPM STR and CVR", async () => {
+test("creative pivot replaces Subpur columns with CPM CTR and CVR", async () => {
   const [html, script, worker, updater] = await Promise.all([
     readFile(new URL("../public/index.html", import.meta.url), "utf8"),
     readFile(new URL("../public/dulci-creative-dashboard.js", import.meta.url), "utf8"),
@@ -120,7 +120,7 @@ test("creative pivot replaces Subpur columns with CPM STR and CVR", async () => 
     readFile(new URL("../scripts/update-static-data.mjs", import.meta.url), "utf8"),
   ]);
   assert.match(script, /metricHeader\("cpm", "CPM"\)/);
-  assert.match(script, /metricHeader\("str", "STR"\)/);
+  assert.match(script, /metricHeader\("ctr", "CTR"\)/);
   assert.match(script, /metricHeader\("cvr", "CVR"\)/);
   assert.doesNotMatch(script, /metricHeader\("subpurRevenue", "Subpur 收入"\)/);
   assert.doesNotMatch(script, /metricHeader\("roas", "Subpur ROAS"\)/);
@@ -129,5 +129,19 @@ test("creative pivot replaces Subpur columns with CPM STR and CVR", async () => 
   assert.match(script, /installs \/ clicks/);
   assert.match(worker, /"impressions", "clicks"/);
   assert.match(updater, /"impressions", "clicks"/);
-  assert.match(html, /CPM = 花费 ÷ 展示 × 1,000；STR = 点击 ÷ 展示；CVR = 安装 ÷ 点击/);
+  assert.match(html, /CPM = 花费 ÷ 展示 × 1,000；CTR = 点击 ÷ 展示；CVR = 安装 ÷ 点击/);
+  assert.doesNotMatch(html, />STR</);
+});
+
+test("creative Top 10 ranks by real revenue value", async () => {
+  const [html, script] = await Promise.all([
+    readFile(new URL("../public/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../public/dulci-creative-dashboard.js", import.meta.url), "utf8"),
+  ]);
+  assert.match(html, /Revenue 素材价值 Top 10/);
+  assert.match(html, /按 Dulci_realrevenue_s2s 价值排序/);
+  assert.match(script, /b\.realRevenueValue - a\.realRevenueValue/);
+  assert.match(script, /group, \.\.\.totals\(group\.rows\)/);
+  assert.match(script, /row\.realRevenueEvents/);
+  assert.match(script, /money\(row\.realRevenueValue\)/);
 });

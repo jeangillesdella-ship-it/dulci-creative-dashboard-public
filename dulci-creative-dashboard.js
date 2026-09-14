@@ -6,6 +6,8 @@ const SUBPUR_EVENT_METRIC = "dulci_subpur_d7_s2s_w1_events_cohort";
 const REAL_REVENUE_EVENT_METRIC = "dulci_realrevenue_s2s_events";
 const REAL_REVENUE_VALUE_METRIC = "dulci_realrevenue_s2s_revenue";
 const REAL_REVENUE_D0_VALUE_METRIC = "dulci_realrevenue_s2s_d0_revenue_cohort";
+const IMPRESSIONS_METRIC = "impressions";
+const CLICKS_METRIC = "clicks";
 const EVENT_UNIT_COST_SUFFIX = "__unit_cost";
 const CHANNELS = [
   { name: "Facebook", label: "Meta", className: "meta", color: "#637bef" },
@@ -55,7 +57,7 @@ const state = {
   expanded: new Set(),
   expandableKeys: new Set(),
   selectedEvents: new Set(validSavedEvents.length ? validSavedEvents : defaultEvents),
-  sortKey: "subpurRevenue",
+  sortKey: "cumulativeRoi",
   sortDirection: "desc",
   metricFilters: new Map(),
   activeMetricFilter: "",
@@ -129,6 +131,8 @@ function iso(days = 0) {
 
 function derived(row) {
   const cost = n(row.cost);
+  const impressions = n(row[IMPRESSIONS_METRIC]);
+  const clicks = n(row[CLICKS_METRIC]);
   const subpurRevenue = n(row[REVENUE_METRIC]);
   const realRevenueValue = n(row[REAL_REVENUE_VALUE_METRIC]);
   const realRevenueD0Value = n(row[REAL_REVENUE_D0_VALUE_METRIC]);
@@ -137,6 +141,11 @@ function derived(row) {
     subpurRevenue,
     subpurEvents: n(row[SUBPUR_EVENT_METRIC]),
     roas: cost ? subpurRevenue / cost : 0,
+    impressions,
+    clicks,
+    cpm: impressions ? cost / impressions * 1000 : 0,
+    str: impressions ? clicks / impressions : 0,
+    cvr: clicks ? n(row.installs) / clicks : 0,
     realRevenueEvents: n(row[REAL_REVENUE_EVENT_METRIC]),
     realRevenueValue,
     roi0: cost ? realRevenueD0Value / cost : 0,
@@ -148,6 +157,8 @@ function totals(rows) {
   const sum = (key) => rows.reduce((total, row) => total + n(row[key]), 0);
   const cost = sum("cost");
   const installs = sum("installs");
+  const impressions = sum(IMPRESSIONS_METRIC);
+  const clicks = sum(CLICKS_METRIC);
   const subpurRevenue = sum(REVENUE_METRIC);
   const realRevenueValue = sum(REAL_REVENUE_VALUE_METRIC);
   const realRevenueD0Value = sum(REAL_REVENUE_D0_VALUE_METRIC);
@@ -158,6 +169,11 @@ function totals(rows) {
     subpurEvents: sum(SUBPUR_EVENT_METRIC),
     ecpi: installs ? cost / installs : 0,
     roas: cost ? subpurRevenue / cost : 0,
+    impressions,
+    clicks,
+    cpm: impressions ? cost / impressions * 1000 : 0,
+    str: impressions ? clicks / impressions : 0,
+    cvr: clicks ? installs / clicks : 0,
     realRevenueEvents: sum(REAL_REVENUE_EVENT_METRIC),
     realRevenueValue,
     roi0: cost ? realRevenueD0Value / cost : 0,
@@ -176,7 +192,7 @@ function aggregateCreativeRows(rows) {
     "adgroup_id_network", "adgroup_network", "creative_id_network", "creative_network"
   ];
   const additive = [
-    "installs", "reattributions", "cost", "dulci_purchase_d0_events_cohort",
+    "installs", "reattributions", "cost", IMPRESSIONS_METRIC, CLICKS_METRIC, "dulci_purchase_d0_events_cohort",
     REAL_REVENUE_EVENT_METRIC, REAL_REVENUE_VALUE_METRIC, REAL_REVENUE_D0_VALUE_METRIC,
     ...EVENT_METRICS.map((metric) => metric.key)
   ];
@@ -390,9 +406,9 @@ function metricValue(node, key) {
     installs: current.installs,
     cost: current.cost,
     ecpi: current.ecpi,
-    subpurRevenue: current.subpurRevenue,
-    subpurEvents: current.subpurEvents,
-    roas: current.roas,
+    cpm: current.cpm,
+    str: current.str,
+    cvr: current.cvr,
     realRevenueEvents: current.realRevenueEvents,
     realRevenueValue: current.realRevenueValue,
     roi0: current.roi0,
@@ -405,12 +421,12 @@ function metricValue(node, key) {
 function metricLabel(key) {
   const eventKey = eventKeyFromUnitCost(key);
   if (eventKey) return `${EVENT_METRICS.find((metric) => metric.key === eventKey)?.short || eventKey} 单价`;
-  const labels = { installs: "安装", cost: "花费", ecpi: "eCPI", subpurRevenue: "Subpur 收入", subpurEvents: "Subpur 事件", roas: "Subpur ROAS", realRevenueEvents: "Revenue 事件", realRevenueValue: "Revenue 价值", roi0: "ROI0", cumulativeRoi: "累积 ROI" };
+  const labels = { installs: "安装", cost: "花费", ecpi: "eCPI", cpm: "CPM", str: "STR", cvr: "CVR", realRevenueEvents: "Revenue 事件", realRevenueValue: "Revenue 价值", roi0: "ROI0", cumulativeRoi: "累积 ROI" };
   return labels[key] || EVENT_METRICS.find((metric) => metric.key === key)?.short || key;
 }
 
 function isPercentMetric(key) {
-  return key === "roas" || key === "roi0" || key === "cumulativeRoi";
+  return key === "str" || key === "cvr" || key === "roi0" || key === "cumulativeRoi";
 }
 
 function passesMetricFilters(node) {
@@ -456,10 +472,6 @@ function flattenPivot(tree) {
   }
   walk(tree);
   return visible;
-}
-
-function status(roas) {
-  return roas >= .7 ? ["good", "优"] : roas >= .35 ? ["watch", "观察"] : ["low", "偏低"];
 }
 
 function renderVideoSyncStatus() {
@@ -515,7 +527,7 @@ function hydrateVideoPreviews() {
 function renderPivot() {
   const events = selectedEventDefinitions();
   const mode = currentPivotMode();
-  $("#pivotHead").innerHTML = `<th class="dimension-head">${mode.label}</th>${metricHeader("installs", "安装")}${metricHeader("cost", "花费")}${metricHeader("ecpi", "eCPI")}${metricHeader("subpurRevenue", "Subpur 收入")}${metricHeader("roas", "Subpur ROAS")}${metricHeader("realRevenueEvents", "Revenue 事件")}${metricHeader("realRevenueValue", "Revenue 价值")}${metricHeader("roi0", "ROI0")}${metricHeader("cumulativeRoi", "累积 ROI")}${events.map((event) => `${metricHeader(event.key, event.short, "event-count-column")}${metricHeader(eventUnitCostKey(event.key), `${event.short} 单价`, "event-unit-cost-column")}`).join("")}`;
+  $("#pivotHead").innerHTML = `<th class="dimension-head">${mode.label}</th>${metricHeader("installs", "安装")}${metricHeader("cost", "花费")}${metricHeader("ecpi", "eCPI")}${metricHeader("cpm", "CPM")}${metricHeader("str", "STR")}${metricHeader("cvr", "CVR")}${metricHeader("realRevenueEvents", "Revenue 事件")}${metricHeader("realRevenueValue", "Revenue 价值")}${metricHeader("roi0", "ROI0")}${metricHeader("cumulativeRoi", "累积 ROI")}${events.map((event) => `${metricHeader(event.key, event.short, "event-count-column")}${metricHeader(eventUnitCostKey(event.key), `${event.short} 单价`, "event-unit-cost-column")}`).join("")}`;
   const tree = buildPivotTree(state.filtered);
   const allVisible = flattenPivot(tree);
   const matching = allVisible.filter(passesMetricFilters);
@@ -524,7 +536,6 @@ function renderPivot() {
     const current = nodeSummary(node);
     const hasChildren = node.children.size > 0;
     const expanded = state.expanded.has(node.key);
-    const roasStatus = status(current.roas);
     const isChannel = node.dimension.key === "channel";
     const isCreative = node.dimension.key === "creative";
     const channel = isChannel ? channelDefinition(node.value) : null;
@@ -538,8 +549,8 @@ function renderPivot() {
       ? `<div class="pivot-creative"><b title="${esc(node.value)}">${esc(node.value)}</b><small>${esc(node.creativeId || "—")}</small></div>`
       : `<span class="pivot-level-name">${esc(node.value)}</span>`;
     const rowClass = hasChildren ? `pivot-level-${node.level}` : "pivot-leaf";
-    return `<tr class="${rowClass}"><td class="pivot-dimension"><div style="--indent:${node.level}">${hasChildren ? `<button type="button" class="pivot-toggle" data-pivot-key="${node.key}" aria-label="${expanded ? "收起" : "展开"}">${expanded ? "−" : "+"}</button>` : '<span class="pivot-spacer"></span>'}${videoControl}${isChannel ? `<span class="channel-pill ${channel.className}">${esc(channel.label)}</span>` : `<span class="level-tag">${node.dimension.label}</span>`}${dimension}</div></td><td>${fmt(current.installs)}</td><td>${money(current.cost)}</td><td>${money(current.ecpi)}</td><td class="revenue-cell">${money(current.subpurRevenue)}</td><td><span class="status-pill ${roasStatus[0]}">${pct(current.roas)} · ${roasStatus[1]}</span></td><td class="event-count-cell">${fmt(current.realRevenueEvents)}</td><td class="revenue-cell">${money(current.realRevenueValue)}</td><td>${pct(current.roi0)}</td><td>${pct(current.cumulativeRoi)}</td>${events.map((event) => { const eventCount = node.rows.reduce((sum, row) => sum + n(row[event.key]), 0); return `<td class="event-count-cell">${fmt(eventCount)}</td><td class="event-unit-cost-cell">${unitMoney(eventCount ? current.cost / eventCount : null)}</td>`; }).join("")}</tr>`;
-  }).join("") : `<tr><td colspan="${10 + events.length * 2}">当前筛选无素材数据</td></tr>`;
+    return `<tr class="${rowClass}"><td class="pivot-dimension"><div style="--indent:${node.level}">${hasChildren ? `<button type="button" class="pivot-toggle" data-pivot-key="${node.key}" aria-label="${expanded ? "收起" : "展开"}">${expanded ? "−" : "+"}</button>` : '<span class="pivot-spacer"></span>'}${videoControl}${isChannel ? `<span class="channel-pill ${channel.className}">${esc(channel.label)}</span>` : `<span class="level-tag">${node.dimension.label}</span>`}${dimension}</div></td><td>${fmt(current.installs)}</td><td>${money(current.cost)}</td><td>${money(current.ecpi)}</td><td>${money(current.cpm)}</td><td>${pct(current.str)}</td><td>${pct(current.cvr)}</td><td class="event-count-cell">${fmt(current.realRevenueEvents)}</td><td class="revenue-cell">${money(current.realRevenueValue)}</td><td>${pct(current.roi0)}</td><td>${pct(current.cumulativeRoi)}</td>${events.map((event) => { const eventCount = node.rows.reduce((sum, row) => sum + n(row[event.key]), 0); return `<td class="event-count-cell">${fmt(eventCount)}</td><td class="event-unit-cost-cell">${unitMoney(eventCount ? current.cost / eventCount : null)}</td>`; }).join("")}</tr>`;
+  }).join("") : `<tr><td colspan="${11 + events.length * 2}">当前筛选无素材数据</td></tr>`;
   const isDirect = mode.dimensions.length === 1;
   $("#expandAllBtn").disabled = $("#collapseAllBtn").disabled = isDirect;
   $("#clearMetricFiltersBtn").disabled = state.metricFilters.size === 0;
@@ -647,7 +658,8 @@ function exportCsv() {
   ]);
   const columns = [
     { key: "os_name", label: "系统" }, { key: "channel", label: "渠道" }, { key: "campaign_network", label: "Campaign" }, { key: "adgroup_network", label: "Group" }, { key: "creative_id_network", label: "Creative ID" }, { key: "creative_network", label: "素材名称" },
-    { key: "installs", label: "安装" }, { key: "cost", label: "花费" }, { key: "ecpi_all", label: "eCPI" }, { key: REVENUE_METRIC, label: "Subpur 收入" }, { key: "roas", label: "Subpur ROAS" },
+    { key: "installs", label: "安装" }, { key: "cost", label: "花费" }, { key: "ecpi_all", label: "eCPI" },
+    { label: "CPM", value: (row) => row.cpm }, { label: "STR", value: (row) => row.str }, { label: "CVR", value: (row) => row.cvr },
     { key: REAL_REVENUE_EVENT_METRIC, label: "Revenue 事件" }, { key: REAL_REVENUE_VALUE_METRIC, label: "Revenue 价值" },
     { label: "ROI0", value: (row) => row.roi0 }, { label: "累积 ROI", value: (row) => row.cumulativeRoi }, ...eventColumns
   ];
@@ -818,7 +830,7 @@ $("#eventMenu").onclick = (event) => {
       state.metricFilters.delete(eventUnitCostKey(metric.key));
     }
     if (EVENT_METRICS.some((metric) => state.sortKey === metric.key || state.sortKey === eventUnitCostKey(metric.key))) {
-      state.sortKey = "subpurRevenue";
+      state.sortKey = "cumulativeRoi";
       state.sortDirection = "desc";
       syncSortSelect();
     }
@@ -829,7 +841,7 @@ $("#eventMenu").onclick = (event) => {
       state.metricFilters.delete(event.target.value);
       state.metricFilters.delete(eventUnitCostKey(event.target.value));
       if (state.sortKey === event.target.value || state.sortKey === eventUnitCostKey(event.target.value)) {
-        state.sortKey = "subpurRevenue";
+        state.sortKey = "cumulativeRoi";
         state.sortDirection = "desc";
         syncSortSelect();
       }

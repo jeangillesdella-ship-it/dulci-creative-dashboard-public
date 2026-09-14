@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Dulci · Google、Meta、TikTok 素材转化看板</title>
-  <link rel="stylesheet" href="./dulci-creative-dashboard.css?v=20260914-realrevenue" />
+  <link rel="stylesheet" href="./dulci-creative-dashboard.css?v=20260914-funnel" />
 </head>
 <body>
   <div class="app">
@@ -43,7 +43,7 @@
       </section>
 
       <section class="panel table-panel">
-        <div class="panel-head table-head"><div><h2>素材数据透视表</h2><p id="tableMeta">默认直接按素材汇总</p><p id="videoSyncStatus" class="video-sync-status">正在检查视频素材…</p></div><div class="table-actions"><label class="pivot-mode-label">查看层级<select id="pivotMode"><option value="creative">素材（直接查看）</option><option value="platformCreative">系统 → 素材</option><option value="platformChannelCreative">系统 → 渠道 → 素材</option><option value="channelCreative">渠道 → 素材</option><option value="campaignCreative">Campaign → 素材</option><option value="groupCreative">Group → 素材</option><option value="full">渠道 → Campaign → Group → 素材</option></select></label><button id="expandAllBtn" class="ghost">全部展开</button><button id="collapseAllBtn" class="ghost">全部收起</button><button id="clearMetricFiltersBtn" class="ghost" disabled>清除指标筛选</button><label>排序<select id="sortBy"><option value="subpurRevenue">Subpur 收入</option><option value="subpurEvents">Subpur 事件</option><option value="realRevenueEvents">Revenue 事件</option><option value="realRevenueValue">Revenue 价值</option><option value="roi0">ROI0</option><option value="cumulativeRoi">累积 ROI</option><option value="cost">花费</option><option value="roas">Subpur ROAS</option><option value="installs">安装</option></select></label><button id="exportBtn" class="ghost">导出当前结果</button></div></div>
+        <div class="panel-head table-head"><div><h2>素材数据透视表</h2><p id="tableMeta">默认直接按素材汇总</p><p id="videoSyncStatus" class="video-sync-status">正在检查视频素材…</p></div><div class="table-actions"><label class="pivot-mode-label">查看层级<select id="pivotMode"><option value="creative">素材（直接查看）</option><option value="platformCreative">系统 → 素材</option><option value="platformChannelCreative">系统 → 渠道 → 素材</option><option value="channelCreative">渠道 → 素材</option><option value="campaignCreative">Campaign → 素材</option><option value="groupCreative">Group → 素材</option><option value="full">渠道 → Campaign → Group → 素材</option></select></label><button id="expandAllBtn" class="ghost">全部展开</button><button id="collapseAllBtn" class="ghost">全部收起</button><button id="clearMetricFiltersBtn" class="ghost" disabled>清除指标筛选</button><label>排序<select id="sortBy"><option value="cumulativeRoi">累积 ROI</option><option value="realRevenueValue">Revenue 价值</option><option value="realRevenueEvents">Revenue 事件</option><option value="roi0">ROI0</option><option value="cpm">CPM</option><option value="str">STR</option><option value="cvr">CVR</option><option value="cost">花费</option><option value="installs">安装</option></select></label><button id="exportBtn" class="ghost">导出当前结果</button></div></div>
         <div class="table-wrap pivot-wrap"><table class="pivot-table"><thead><tr id="pivotHead"></tr></thead><tbody id="creativeRows"></tbody></table></div>
         <div class="load-more-wrap"><button id="loadMoreRowsBtn" type="button" class="ghost" hidden>继续加载</button></div>
         <div id="metricFilterPopover" class="metric-filter-popover" hidden><div class="metric-filter-title"><b id="metricFilterTitle">指标筛选</b><button id="closeMetricFilter" type="button">×</button></div><label>最小值<input id="metricFilterMin" type="number" step="any" placeholder="不限" /></label><label>最大值<input id="metricFilterMax" type="number" step="any" placeholder="不限" /></label><div class="metric-filter-actions"><button id="removeMetricFilter" type="button" class="ghost">清除此列</button><button id="applyMetricFilter" type="button">应用筛选</button></div></div>
@@ -54,9 +54,9 @@
           <video id="creativeVideo" controls playsinline preload="metadata"></video>
         </div>
       </div>
-      <footer>数据源：Adjust Report Service API · 最近 93 天公开快照 · app vpis1uwa4dmo · iOS + Android · network 花费 · immature cohort · Google + Meta + TikTok · Revenue 口径：dulci_realrevenue_s2s（ROI0 = D0 Revenue 价值 ÷ 花费；累积 ROI = 累积 Revenue 价值 ÷ 花费）</footer>
+      <footer>数据源：Adjust Report Service API · 最近 93 天公开快照 · app vpis1uwa4dmo · iOS + Android · network 花费 · immature cohort · Google + Meta + TikTok · CPM = 花费 ÷ 展示 × 1,000；STR = 点击 ÷ 展示；CVR = 安装 ÷ 点击 · Revenue 口径：dulci_realrevenue_s2s（ROI0 = D0 Revenue 价值 ÷ 花费；累积 ROI = 累积 Revenue 价值 ÷ 花费）</footer>
     </main>
   </div>
-  <script src="./dulci-creative-dashboard.js?v=20260914-realrevenue"></script>
+  <script src="./dulci-creative-dashboard.js?v=20260914-funnel"></script>
 </body>
 </html>

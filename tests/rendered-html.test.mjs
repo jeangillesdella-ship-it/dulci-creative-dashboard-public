@@ -97,4 +97,17 @@ test("live Adjust reports request the complete result set", async () => {
   assert.match(worker, /readable_names:\s*"false"/);
   assert.match(worker, /os_name__in/);
   assert.match(worker, /day,os_name,partner_name,channel/);
+  assert.match(worker, /dulci_realrevenue_s2s_events/);
+  assert.match(worker, /dulci_realrevenue_s2s_revenue/);
+  assert.match(worker, /dulci_realrevenue_s2s_d0_revenue_cohort/);
+});
+
+test("creative pivot exposes real revenue and ROI metrics", async () => {
+  const script = await readFile(new URL("../public/dulci-creative-dashboard.js", import.meta.url), "utf8");
+  assert.match(script, /metricHeader\("realRevenueEvents", "Revenue 事件"\)/);
+  assert.match(script, /metricHeader\("realRevenueValue", "Revenue 价值"\)/);
+  assert.match(script, /metricHeader\("roi0", "ROI0"\)/);
+  assert.match(script, /metricHeader\("cumulativeRoi", "累积 ROI"\)/);
+  assert.match(script, /realRevenueD0Value \/ cost/);
+  assert.match(script, /realRevenueValue \/ cost/);
 });

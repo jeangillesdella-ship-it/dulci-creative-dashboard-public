@@ -188,6 +188,8 @@ const creativeMetrics = [
   "dulci_purchase_events", "dulci_purchase_d7_s2s_events",
   "dulci_relogin_24h_d0_events_cohort_cal", "retained_users_d0", "retained_users_d1",
   "dulci_realsubscription_d0_events_cohort_cal", "dulci_realsubscription_d0_events_cohort",
+  "dulci_realrevenue_s2s_events", "dulci_realrevenue_s2s_revenue",
+  "dulci_realrevenue_s2s_d0_revenue_cohort",
   "dulci_subpur_d7_s2s_w1_events_cohort",
   "dulci_subpur_d14_s2s_w1_revenue_cohort",
 ];
@@ -285,7 +287,7 @@ async function dulciReport(request: Request, env: Env): Promise<Response> {
       datePeriod: period,
       platform,
       supportedPlatforms: ["all", "ios", "android"],
-      source: `Adjust Report Service API · Google + Meta + TikTok · ${platform === "all" ? "iOS + Android" : platform} · creative grain · subpur revenue`,
+      source: `Adjust Report Service API · Google + Meta + TikTok · ${platform === "all" ? "iOS + Android" : platform} · creative grain · subpur + real revenue`,
       fetchedAt: new Date().toISOString(),
       warnings: [...(creativeReport.warnings || []), ...(trendReport.warnings || [])],
     };

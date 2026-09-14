@@ -14,6 +14,8 @@ const metrics = [
   "dulci_purchase_events", "dulci_purchase_d7_s2s_events",
   "dulci_relogin_24h_d0_events_cohort_cal", "retained_users_d0", "retained_users_d1",
   "dulci_realsubscription_d0_events_cohort_cal", "dulci_realsubscription_d0_events_cohort",
+  "dulci_realrevenue_s2s_events", "dulci_realrevenue_s2s_revenue",
+  "dulci_realrevenue_s2s_d0_revenue_cohort",
   "dulci_subpur_d7_s2s_w1_events_cohort",
   "dulci_subpur_d14_s2s_w1_revenue_cohort",
 ];
@@ -51,7 +53,7 @@ const payload = {
   rows: (report.rows || []).map((row) => fields.map((field) => row[field] ?? null)),
   fetchedAt: new Date().toISOString(),
   datePeriod: "最近 93 天（UTC 公开快照）",
-  source: "Adjust Report Service API · Google + Meta + TikTok · iOS + Android · daily creative grain · subpur revenue",
+  source: "Adjust Report Service API · Google + Meta + TikTok · iOS + Android · daily creative grain · subpur + real revenue",
   warnings: report.warnings || [],
 };
 

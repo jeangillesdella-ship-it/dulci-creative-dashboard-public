@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { execFileSync } from "node:child_process";
-import { copyFile, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { execFileSync, spawn } from "node:child_process";
+import { copyFile, mkdir, readdir, stat, writeFile } from "node:fs/promises";
 import { basename, extname, join, relative } from "node:path";
 
 const owner = "jeangillesdella-ship-it";
@@ -25,7 +25,7 @@ function githubCredential() {
 
 const token = githubCredential();
 
-async function github(pathname, options = {}) {
+async function githubOnce(pathname, options = {}) {
   const response = await fetch(`https://api.github.com${pathname}`, {
     ...options,
     headers: {
@@ -46,6 +46,17 @@ async function github(pathname, options = {}) {
     throw error;
   }
   return body;
+}
+
+async function github(pathname, options = {}) {
+  for (let attempt = 0; ; attempt += 1) {
+    try { return await githubOnce(pathname, options); }
+    catch (error) {
+      if ((options.method || "GET") !== "GET" || attempt >= 4 || (error.status && error.status !== 429 && error.status < 500)) throw error;
+      console.log(`GitHub 读取暂时失败，重试 ${attempt + 1}/4`);
+      await new Promise((resolve) => setTimeout(resolve, Math.min(16000, 2000 * 2 ** attempt)));
+    }
+  }
 }
 
 async function ensureRelease() {
@@ -110,26 +121,28 @@ function contentType(filePath) {
 }
 
 async function uploadAsset(uploadUrl, filePath, assetName) {
-  const bytes = await readFile(filePath);
   const url = `${uploadUrl.replace(/\{.*$/, "")}?name=${encodeURIComponent(assetName)}`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      accept: "application/vnd.github+json",
-      authorization: `Bearer ${token}`,
-      "content-type": contentType(filePath),
-      "content-length": String(bytes.length),
-      "x-github-api-version": "2022-11-28",
-      "user-agent": "dulci-media-publisher",
-    },
-    body: bytes,
+  const config = [
+    `url = "${url}"`,
+    `header = "accept: application/vnd.github+json"`,
+    `header = "authorization: Bearer ${token}"`,
+    `header = "content-type: ${contentType(filePath)}"`,
+    `header = "x-github-api-version: 2022-11-28"`,
+    `header = "user-agent: dulci-media-publisher"`,
+  ].join("\n");
+  await new Promise((resolve, reject) => {
+    const child = spawn("/usr/bin/curl", ["--config", "-", "--http1.1", "--silent", "--show-error", "--connect-timeout", "30", "--max-time", "600", "--request", "POST", "--data-binary", `@${filePath}`, "--output", "/dev/null", "--write-out", "%{http_code}"], { stdio: ["pipe", "pipe", "pipe"] });
+    let status = "";
+    child.stdout.on("data", (chunk) => { status += chunk; });
+    child.stderr.on("data", () => {});
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0 && /^2\d\d$/.test(status.trim())) resolve();
+      else reject(new Error(`Upload failed: curl=${code}, HTTP=${status.trim()}, asset=${assetName}`));
+    });
+    child.stdin.on("error", () => {});
+    child.stdin.end(config + "\n");
   });
-  const text = await response.text();
-  if (!response.ok) {
-    let message = text.slice(0, 180);
-    try { message = JSON.parse(text).message || message; } catch {}
-    throw new Error(`上传 ${assetName} 失败：${response.status} ${message}`);
-  }
 }
 
 const release = await ensureRelease();
@@ -179,15 +192,48 @@ for (const filePath of videoFiles) {
 console.log(`素材 ${records.length} 条，待上传文件 ${uploadQueue.length} 个`);
 let cursor = 0;
 let completed = 0;
+const uploadFailures = [];
+async function uploadWithRetry(item) {
+  const expectedSize = (await stat(item.filePath)).size;
+  for (let attempt = 1; attempt <= 6; attempt += 1) {
+    try {
+      if (attempt > 1) {
+        const remote = (await listReleaseAssets(release.id)).find((asset) => asset.name === item.assetName);
+        if (remote?.state === "uploaded" && Number(remote.size) === expectedSize) return;
+        if (remote) await github(`/repos/${owner}/${repo}/releases/assets/${remote.id}`, { method: "DELETE" });
+      }
+      await uploadAsset(release.upload_url, item.filePath, item.assetName);
+      return;
+    } catch (error) {
+      if (attempt === 6) throw error;
+      console.log(`上传连接中断，重试 ${attempt}/5: ${item.assetName}`);
+      await new Promise((resolve) => setTimeout(resolve, Math.min(30000, 2000 * 2 ** (attempt - 1))));
+    }
+  }
+}
 async function uploader() {
   while (cursor < uploadQueue.length) {
     const item = uploadQueue[cursor++];
-    await uploadAsset(release.upload_url, item.filePath, item.assetName);
+    try {
+      await uploadWithRetry(item);
+    } catch (error) {
+      uploadFailures.push(item.assetName);
+      console.log(`上传重试失败: ${item.assetName}`);
+      continue;
+    }
     completed += 1;
     if (completed % 10 === 0 || completed === uploadQueue.length) console.log(`已上传 ${completed}/${uploadQueue.length}`);
   }
 }
-await Promise.all(Array.from({ length: 6 }, uploader));
+await Promise.all(Array.from({ length: 3 }, uploader));
+if (uploadFailures.length) throw new Error(`${uploadFailures.length} uploads failed; manifest unchanged`);
+const verifiedRemote = new Map((await listReleaseAssets(release.id)).map((asset) => [asset.name, asset]));
+for (const item of uploadQueue) {
+  const remote = verifiedRemote.get(item.assetName);
+  if (remote?.state !== "uploaded" || Number(remote.size) !== (await stat(item.filePath)).size) {
+    throw new Error(`Upload verification failed: ${item.assetName}`);
+  }
+}
 
 const unique = new Map();
 records.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).forEach((record) => {

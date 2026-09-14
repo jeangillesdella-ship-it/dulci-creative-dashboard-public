@@ -4,7 +4,7 @@ const token = process.env.ADJUST_API_TOKEN;
 if (!token) throw new Error("Missing ADJUST_API_TOKEN");
 
 const metrics = [
-  "installs", "reattributions", "cost", "ecpi_all",
+  "installs", "reattributions", "cost", "ecpi_all", "impressions", "clicks",
   "dulci_purchase_d0_events_cohort",
   "dulci_open_002t_24h_events", "dulci_online_005m_24h_events",
   "dulci_online_010m_24h_events", "dulci_online_020m_24h_events",

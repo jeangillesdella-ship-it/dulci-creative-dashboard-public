@@ -1,3 +1,4 @@
+# Pending GitHub workflow permission. This template is not an active schedule.
 name: Refresh public Adjust data
 
 on:

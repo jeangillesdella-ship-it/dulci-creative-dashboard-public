@@ -239,11 +239,14 @@ async function adjustReport(token: string, period: string, dimensions: string, m
   if (sort) params.set("sort", sort);
   const response = await fetch(`https://automate.adjust.com/reports-service/report?${params}`, {
     headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    signal: AbortSignal.timeout(60000),
   });
   const body = await response.text();
   if (!response.ok) throw new Error(`Adjust 请求失败：${response.status} ${body.slice(0, 180)}`);
   try {
-    return JSON.parse(body) as { rows?: unknown[]; totals?: Record<string, unknown>; warnings?: unknown[] };
+    const report = JSON.parse(body);
+    if (!Array.isArray(report.rows)) throw new Error("Missing report rows");
+    return report as { rows: Record<string, unknown>[]; totals?: Record<string, unknown>; warnings?: unknown[] };
   } catch {
     throw new Error("Adjust 返回内容不是合法 JSON");
   }
@@ -268,14 +271,14 @@ async function dulciReport(request: Request, env: Env): Promise<Response> {
         period,
         "os_name,partner_name,channel,campaign_id_network,campaign_network,adgroup_id_network,adgroup_network,creative_id_network,creative_network",
         creativeMetrics.join(","),
-        "-dulci_subpur_d14_s2s_w1_revenue_cohort",
+        "-cost",
         platform,
       ),
       adjustReport(
         env.ADJUST_API_TOKEN,
         period,
         "day,os_name,partner_name,channel",
-        "installs,cost,dulci_subpur_d7_s2s_w1_events_cohort,dulci_subpur_d14_s2s_w1_revenue_cohort,retained_users_d1",
+        "installs,cost,dulci_subpur_d7_s2s_w1_events_cohort,dulci_subpur_d14_s2s_w1_revenue_cohort,dulci_realrevenue_s2s_revenue,retained_users_d1",
         undefined,
         platform,
       ),
@@ -289,13 +292,16 @@ async function dulciReport(request: Request, env: Env): Promise<Response> {
       supportedPlatforms: ["all", "ios", "android"],
       source: `Adjust Report Service API · Google + Meta + TikTok · ${platform === "all" ? "iOS + Android" : platform} · creative grain · subpur + real revenue`,
       fetchedAt: new Date().toISOString(),
+      dataThrough: (trendReport.rows || []).map(row => String(row.day || "")).filter(Boolean).sort().at(-1) || null,
       warnings: [...(creativeReport.warnings || []), ...(trendReport.warnings || [])],
     };
     reportCache.set(cacheKey, { cachedAt: Date.now(), payload });
     if (reportCache.size > 20) reportCache.delete(reportCache.keys().next().value as string);
     return json({ ...payload, cached: false });
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : "数据查询失败" }, 400);
+    const message = error instanceof Error ? error.message : "数据查询失败";
+    console.error("Adjust report failed", message);
+    return json({ error: message, failedAt: new Date().toISOString() }, 502);
   }
 }
 

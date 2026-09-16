@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile, rename } from "node:fs/promises";
 
 const token = process.env.ADJUST_API_TOKEN;
 if (!token) throw new Error("Missing ADJUST_API_TOKEN");
@@ -38,10 +38,14 @@ const params = new URLSearchParams({
 
 const response = await fetch(`https://automate.adjust.com/reports-service/report?${params}`, {
   headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  signal: AbortSignal.timeout(180000),
 });
 const body = await response.text();
 if (!response.ok) throw new Error(`Adjust request failed: ${response.status} ${body.slice(0, 180)}`);
 const report = JSON.parse(body);
+if (!Array.isArray(report.rows) || !report.rows.length) throw new Error("Adjust returned no rows; preserving last successful snapshot");
+const latestDay = report.rows.map(row => row.day).filter(Boolean).sort().at(-1);
+if (!latestDay || Date.now() - Date.parse(latestDay + "T00:00:00Z") > 3 * 86400000) throw new Error("Adjust data coverage is stale; preserving last successful snapshot");
 const dimensionFields = params.get("dimensions").split(",");
 const knownFields = [...dimensionFields, ...metrics];
 const extraFields = [...new Set((report.rows || []).flatMap((row) => Object.keys(row)))]
@@ -52,11 +56,13 @@ const payload = {
   fields,
   rows: (report.rows || []).map((row) => fields.map((field) => row[field] ?? null)),
   fetchedAt: new Date().toISOString(),
+  dataThrough: latestDay,
   datePeriod: "最近 93 天（UTC 公开快照）",
   source: "Adjust Report Service API · Google + Meta + TikTok · iOS + Android · daily creative grain · subpur + real revenue",
   warnings: report.warnings || [],
 };
 
 await mkdir("public/data", { recursive: true });
-await writeFile("public/data/latest.json", JSON.stringify(payload));
+await writeFile("public/data/latest.json.tmp", JSON.stringify(payload));
+await rename("public/data/latest.json.tmp", "public/data/latest.json");
 console.log(`Saved ${payload.rows.length} compact daily creative rows at ${payload.fetchedAt}`);

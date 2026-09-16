@@ -1,0 +1,44 @@
+name: Refresh public Adjust data
+
+on:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'public/**'
+      - 'scripts/update-static-data.mjs'
+      - '.github/workflows/refresh-data.yml'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: dulci-public-data-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Fetch and validate Adjust snapshot
+        env:
+          ADJUST_API_TOKEN: ${{ secrets.ADJUST_API_TOKEN }}
+        run: node scripts/update-static-data.mjs
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+      - name: Deploy fresh public snapshot
+        id: deployment
+        uses: actions/deploy-pages@v4

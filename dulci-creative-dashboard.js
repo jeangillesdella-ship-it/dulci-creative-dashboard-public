@@ -1,6 +1,10 @@
 const $ = (selector) => document.querySelector(selector);
 const LIVE_DATA_URL = "/api/adjust/dulci-creatives";
 const IS_STATIC_PUBLIC_HOST = location.hostname.endsWith(".github.io") || location.protocol === "file:";
+const AUTO_REFRESH_MS = 5 * 60 * 1000;
+let dataLoading = false;
+let lastDataCheck = 0;
+let activeQuery = null;
 const REVENUE_METRIC = "dulci_subpur_d14_s2s_w1_revenue_cohort";
 const SUBPUR_EVENT_METRIC = "dulci_subpur_d7_s2s_w1_events_cohort";
 const REAL_REVENUE_EVENT_METRIC = "dulci_realrevenue_s2s_events";
@@ -614,6 +618,8 @@ async function loadCreativeAssets(refresh = false) {
 }
 
 async function loadData(refresh = false) {
+  if (dataLoading) return;
+  dataLoading = true;
   $("#queryBtn").disabled = $("#refreshBtn").disabled = true;
   $("#message").className = "message";
   const platform = $("#platform").value || "all";
@@ -624,17 +630,26 @@ async function loadData(refresh = false) {
     if (refresh) params.set("refresh", "1");
     let data;
     let snapshotMode = false;
+    let liveError = "";
     if (!IS_STATIC_PUBLIC_HOST) {
       try {
-        const response = await fetch(`${LIVE_DATA_URL}?${params}`, { cache: "no-store" });
+        const response = await fetch(`${LIVE_DATA_URL}?${params}`, { cache: "no-store", signal: AbortSignal.timeout(90000) });
         data = await response.json();
-        if (!response.ok) throw new Error(data.error || "Adjust 查询失败");
-      } catch {
+        if (!response.ok || !Array.isArray(data.rows) || !data.fetchedAt) throw new Error(data.error || "Adjust 查询失败");
+      } catch (error) {
+        liveError = error.message;
         data = null;
       }
     }
     if (!data) {
-      const snapshotResponse = await fetch(`./data/latest.json?t=${refresh ? Date.now() : "latest"}`, { cache: "no-store" });
+      const sharedSnapshot = "https://jeangillesdella-ship-it.github.io/dulci-creative-dashboard-public/data/latest.json";
+      let snapshotResponse;
+      try {
+        snapshotResponse = await fetch(`${IS_STATIC_PUBLIC_HOST ? "./data/latest.json" : sharedSnapshot}?t=${Date.now()}`, { cache: "no-store", signal: AbortSignal.timeout(30000) });
+        if (!snapshotResponse.ok) throw new Error("备用数据服务不可达");
+      } catch {
+        snapshotResponse = await fetch(`./data/latest.json?t=${Date.now()}`, { cache: "no-store", signal: AbortSignal.timeout(30000) });
+      }
       const snapshot = await snapshotResponse.json();
       if (!snapshotResponse.ok || !Array.isArray(snapshot.rows)) throw new Error(snapshot.error || "公开数据快照读取失败");
       const rows = rowsFromSnapshot(snapshot, $("#startDate").value, $("#endDate").value, platform);
@@ -644,19 +659,27 @@ async function loadData(refresh = false) {
     state.rows = aggregateCreativeRows(data.rows || []);
     state.trend = data.trend || [];
     state.fetchedAt = data.fetchedAt;
-    await loadCreativeAssets(refresh);
     refreshOptions();
     applyFilters();
-    $("#sourceDot").className = "ok";
+    activeQuery = { start: $("#startDate").value, end: $("#endDate").value, platform };
+    const stale = !Number.isFinite(Date.parse(data.fetchedAt)) || Date.now() - Date.parse(data.fetchedAt) > (snapshotMode ? 60 * 60 * 1000 : 10 * 60 * 1000);
+    const latestDay = data.dataThrough || data.trend?.map(row => row.day).filter(Boolean).sort().at(-1) || "未知";
+    $("#sourceDot").className = stale || liveError ? "" : "ok";
     $("#sourceState").textContent = snapshotMode ? `Adjust ${platformLabel} 公开快照` : `Adjust ${platformLabel} 实时数据`;
-    $("#freshness").textContent = `更新于 ${new Date(data.fetchedAt).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}${data.cached ? " · 快照" : ""}`;
-    $("#message").className = "message success";
-    $("#message").textContent = `${snapshotMode ? "已加载公开数据快照" : "已实时加载"} ${state.rows.length} 条投放组合 · ${platformLabel} · Google、Meta 与 TikTok · ${$("#startDate").value} 至 ${$("#endDate").value} · ${snapshotMode ? `快照生成于 ${new Date(data.fetchedAt).toLocaleString("zh-CN")}` : data.cached ? "5 分钟缓存" : "刚刚从 Adjust 更新"} · Subpur 与 Real Revenue 口径已分列`;
+    $("#freshness").textContent = `${stale ? "数据已过期 · " : ""}同步于 ${new Date(data.fetchedAt).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })} · ${snapshotMode ? "公开快照" : data.cached ? "5分钟内缓存" : "Adjust最新查询"} · 每5分钟检查`;
+    $("#message").className = stale || liveError ? "message error" : "message success";
+    $("#message").textContent = `${liveError ? "实时更新失败，当前显示备用快照（不是实时数据）。" : ""}${stale ? "数据已过期，请勿按最新数据决策。" : ""}${snapshotMode ? "已加载公开数据快照" : "已从 Adjust 读取"} ${state.rows.length} 条投放组合 · ${platformLabel} · ${$("#startDate").value} 至 ${$("#endDate").value} · 最新有记录日期 ${latestDay}（UTC） · ${snapshotMode ? `快照生成于 ${new Date(data.fetchedAt).toLocaleString("zh-CN")}` : data.cached ? "缓存最长5分钟" : "刚刚同步"} · 当日数据及延迟回传以后续 Adjust 更新为准${liveError ? ` · 错误：${liveError}` : ""}`;
+    // Video discovery must never block fresh metrics or automatic refresh.
+    if (!state.creativeAssets.size || refresh) loadCreativeAssets(refresh).then(() => renderPivot());
   } catch (error) {
     $("#sourceState").textContent = "Adjust 连接失败";
+    $("#sourceDot").className = "";
+    $("#freshness").textContent = `更新失败 · 上次成功 ${state.fetchedAt ? new Date(state.fetchedAt).toLocaleString("zh-CN") : "无"} · 5分钟后重试`;
     $("#message").className = "message error";
-    $("#message").textContent = error.message;
+    $("#message").textContent = `本次更新失败；保留的表格不是最新结果。${error.message}`;
   } finally {
+    dataLoading = false;
+    lastDataCheck = Date.now();
     $("#queryBtn").disabled = $("#refreshBtn").disabled = false;
   }
 }
@@ -872,4 +895,12 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !$("#videoModal").hidden) closeVideoModal();
 });
 
+function autoRefresh() {
+  if (document.hidden || dataLoading || Date.now() - lastDataCheck < AUTO_REFRESH_MS) return;
+  if (activeQuery && (activeQuery.start !== $("#startDate").value || activeQuery.end !== $("#endDate").value || activeQuery.platform !== $("#platform").value)) return;
+  loadData();
+}
+setInterval(autoRefresh, 15000);
+document.addEventListener("visibilitychange", autoRefresh);
+window.addEventListener("online", () => { lastDataCheck = 0; autoRefresh(); });
 loadData();
